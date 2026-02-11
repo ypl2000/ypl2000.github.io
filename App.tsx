@@ -124,7 +124,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-white">
+    <div className="flex h-screen bg-white overflow-hidden">
       {/* Mobile Header */}
       <div className="md:hidden fixed top-0 w-full bg-white border-b border-gray-200 z-20 px-4 py-3 flex justify-between items-center">
         <span className="font-serif font-bold text-lg text-primary">{PROFILE.name}</span>
@@ -140,12 +140,12 @@ const App: React.FC = () => {
         setIsMobileOpen={setIsMobileOpen}
       />
       
-      <main className="flex-1 min-w-0 md:h-screen md:overflow-y-auto">
-        <div className="p-6 pt-20 md:p-12 lg:p-20 max-w-5xl mx-auto">
+      <main className="flex-1 min-w-0 h-full overflow-y-auto relative">
+        <div className="p-6 pt-20 md:p-12 lg:p-20 max-w-5xl mx-auto min-h-[calc(100vh-100px)]">
           {renderContent()}
         </div>
         
-        {/* Footer Area within scrollable main */}
+        {/* Footer Area */}
         <div className="p-6 md:p-12 text-center text-slate-400 text-sm border-t border-gray-100 max-w-5xl mx-auto">
             &copy; {new Date().getFullYear()} {PROFILE.name}. 基于 React, Tailwind & Gemini 构建。
         </div>
