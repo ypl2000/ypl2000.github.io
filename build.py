@@ -24,6 +24,14 @@ ARTICLES = [
         "date": "2025-12-03",
         "summary": "从天气预报业务的三种范式讲起，解读盘古气象大模型，对比业界 AI 气象模型，并给出商业气象的产业观察。",
     },
+    {
+        "src": "src/life-science-ai.md",
+        "out": "life-science-ai.html",
+        "title": "生命科学AI模型发展及典型模型解析",
+        "series": "AI + 生命科学",
+        "date": "2026-10-19",
+        "summary": "从生物学研究的核心业务难题出发，梳理 AI 进入生命科学的发展脉络，解析 scVI、Enformer、HyenaDNA、EVO、ESM、AlphaFold 2/3、RFdiffusion 等典型模型的技术思路。",
+    },
 ]
 
 ROOT = Path(__file__).parent
