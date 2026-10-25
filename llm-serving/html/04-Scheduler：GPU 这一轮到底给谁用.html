@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 Scheduler：GPU 这一轮到底给谁用</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 04 Scheduler：GPU 这一轮到底给谁用</div>
+<article>
+ <div class="ahead">
+  <span class="chip">04</span>
+  <h1>Scheduler：GPU 这一轮到底给谁用</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 4 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（29 条）</summary><ol><li><a href="#1-continuous-batching为什么-batch-必须动态变化">1. Continuous Batching：为什么 Batch 必须动态变化？</a><ol class="lv3"><li><a href="#11-static-batching-的问题">1.1 Static Batching 的问题</a></li><li><a href="#12-continuous-batching">1.2 Continuous Batching</a></li></ol></li><li><a href="#2-chunked-prefill为什么一个-request-也不能一次吃完">2. Chunked Prefill：为什么一个 Request 也不能一次吃完？</a><ol class="lv3"><li><a href="#21-chunked-prefill">2.1 Chunked Prefill</a></li><li><a href="#22-chunked-prefill-的代价">2.2 Chunked Prefill 的代价</a></li><li><a href="#23-long_prefill_token_threshold">2.3 long_prefill_token_threshold</a></li></ol></li><li><a href="#3-token-budgetscheduler-每一轮到底怎么分配">3. Token Budget：Scheduler 每一轮到底怎么分配？</a><ol class="lv3"><li><a href="#31-request-是调度对象token-是调度资源">3.1 Request 是调度对象，Token 是调度资源</a></li><li><a href="#32-每一轮首先确定-token-budget">3.2 每一轮首先确定 Token Budget</a></li><li><a href="#33-request-还需要推进多少">3.3 Request 还需要推进多少？</a></li><li><a href="#34-num_new_tokens本轮真正分配多少">3.4 num_new_tokens：本轮真正分配多少？</a></li><li><a href="#35-用一个完整例子看懂-schedule">3.5 用一个完整例子看懂 schedule()</a></li><li><a href="#36-decode-为什么也是同一个调度模型">3.6 Decode 为什么也是同一个调度模型？</a></li><li><a href="#37-scheduler-的核心源码逻辑">3.7 Scheduler 的核心源码逻辑</a></li><li><a href="#38-token-budget-与-kv-cache-是两个不同维度的约束">3.8 Token Budget 与 KV Cache 是两个不同维度的约束</a></li></ol></li><li><a href="#4-mixed-batch为什么-prefilldecode-与-speculative-可以共存">4. Mixed Batch：为什么 Prefill、Decode 与 Speculative 可以共存？</a><ol class="lv3"><li><a href="#41-一轮-gpu-中可以同时有什么">4.1 一轮 GPU 中可以同时有什么？</a></li><li><a href="#42-mixed-batch-并不是三种-batch-拼起来">4.2 Mixed Batch 并不是三种 Batch 拼起来</a></li><li><a href="#43-speculative-decoding-为什么可以自然融入">4.3 Speculative Decoding 为什么可以自然融入？</a></li><li><a href="#44-scheduleroutput调度完成后发生什么">4.4 SchedulerOutput：调度完成后发生什么？</a></li></ol></li><li><a href="#5-admission-control-与-preemptionkv-cache-不够怎么办">5. Admission Control 与 Preemption：KV Cache 不够怎么办？</a><ol class="lv3"><li><a href="#51-admission-control不是所有-request-都能立即进入-running">5.1 Admission Control：不是所有 Request 都能立即进入 Running</a></li><li><a href="#52-kv-cache-不够preemption">5.2 KV Cache 不够：Preemption</a></li><li><a href="#53-recomputation-vs-swapping">5.3 Recomputation vs Swapping</a></li><li><a href="#54-为什么-recomputation-不一定像想象中那么昂贵">5.4 为什么 Recomputation 不一定像想象中那么昂贵？</a></li><li><a href="#55-lifo-preemption-与重新入队">5.5 LIFO Preemption 与重新入队</a></li><li><a href="#56-watermark给-kv-cache-留一点安全余量">5.6 Watermark：给 KV Cache 留一点安全余量</a></li></ol></li><li><a href="#6-本章小结scheduler从batch-调度到资源调度">6. 本章小结：Scheduler：从“Batch 调度”到“资源调度”</a></li></ol></details>
+<p>前面我们已经解决了一个重要问题：</p>
+<blockquote>
+<p><strong>KV Cache 如何管理？</strong></p>
+</blockquote>
+<p>PagedAttention 将 KV Cache 从连续的大块显存变成可以按 Block 动态分配和回收的资源，使得不同请求可以灵活共享 GPU 显存。</p>
+<p>但有了 KV Cache 之后，还有一个更直接的问题：</p>
+<blockquote>
+<p><strong>GPU 这一轮到底给谁用？每个请求这一轮应该推进多少？</strong></p>
+</blockquote>
+<p>这正是 Scheduler 要解决的问题。</p>
+<p>传统深度学习推理通常以固定 Batch 为基本调度单位：</p>
+<pre><code>Batch
+├── Request A
+├── Request B
+└── Request C  
+↓执行完整 Batch  
+↓所有 Request 完成</code></pre>
+<p>这种模式对于 CNN、分类模型等输入输出长度相对固定的任务比较合适。</p>
+<p>但 LLM Serving 完全不同：</p>
+<ul>
+<li>不同请求的 Prompt 长度不同；</li>
+<li>每个请求最终生成多少 token 是未知的；</li>
+<li>Prefill 和 Decode 的计算特征不同；</li>
+<li>请求会不断到达和完成；</li>
+<li>KV Cache 会随着生成过程动态增长；</li>
+<li>Speculative Decoding 甚至会让一次迭代推进多个 token。</li>
+</ul>
+<p>因此，LLM Serving 的 Batch 不能再是一个固定不变的集合。</p>
+<p>vLLM 的调度可以理解为逐渐回答五个问题：</p>
+<pre><code>为什么 Batch 必须动态变化？        │  
+▼1. Continuous Batching        │  
+▼为什么一个长 Prompt 也不能一次执行完？        │  
+▼2. Chunked Prefill        │  
+▼Scheduler 每一轮到底给每个 Request 多少计算额度？        │  
+▼3. Token Budget        │  
+▼为什么 Prefill / Decode / Speculative 可以同时存在？        │  
+▼4. Mixed Batch        │  
+▼如果 KV Cache 不够怎么办？        │  
+▼5. Admission Control &amp; Preemption</code></pre>
+<p>最终可以把 Scheduler 理解为：</p>
+<blockquote>
+<p><strong>在计算资源和 KV Cache 资源的双重约束下，每一轮动态决定哪些 Request 执行，以及每个 Request 本轮推进多少 token。</strong></p>
+</blockquote>
+<h2 id="1-continuous-batching为什么-batch-必须动态变化">1. Continuous Batching：为什么 Batch 必须动态变化？</h2>
+<h3 id="11-static-batching-的问题">1.1 Static Batching 的问题</h3>
+<p>传统推理系统通常采用 Static Batching。</p>
+<p>例如有三个请求：</p>
+<pre><code>Request A：生成 12 tokens
+Request B：生成 6 tokens
+Request C：生成 4 tokens</code></pre>
+<p>如果采用固定 Batch：</p>
+<pre><code>Step 1：A  ████████████
+B  ██████
+C  ████
+Step 2：A  ████████████
+B  ██████
+C  ████...Step 4：A  ████████████
+B  ██████
+C  ████  
+↑          B、C 已经完成...Step 12：A  ████████████
+B  idleC  idle</code></pre>
+<p>问题很明显：</p>
+<blockquote>
+<p><strong>请求 B、C 已经完成，但 Batch 仍然要等请求 A。</strong></p>
+</blockquote>
+<p>GPU 的部分计算资源因此被浪费。</p>
+<p>更严重的是，新来的 Request D 即使已经排队，也无法及时加入当前 Batch：</p>
+<pre><code>A ──────────────────────────────►B ───────────► done
+C ────────► done
+D ────────► waiting...</code></pre>
+<p>于是系统形成：</p>
+<pre><code>GPU
+│├── 已完成请求释放资源
+│├── Batch 仍然没有结束
+│└── 新请求无法及时进入</code></pre>
+<h3 id="12-continuous-batching">1.2 Continuous Batching</h3>
+<p>LLM 的生成过程天然是迭代式的：</p>
+<pre><code>Iteration 1  
+↓Iteration 2  
+↓Iteration 3  
+↓...</code></pre>
+<p>因此，一个更合理的做法是：</p>
+<blockquote>
+<p><strong>不再固定整个 Batch 的生命周期，而是在每一轮迭代开始之前重新决定本轮有哪些 Request 参与执行。</strong></p>
+</blockquote>
+<p>这就是 Continuous Batching。</p>
+<pre><code>                 Continuous Batching
+Iter 1:   [A] [B] [C]
+Iter 2:   [A] [B] [C]
+Iter 3:   [A] [B] [C] → A 完成
+Iter 4:        [B] [C] [D]   ← D 加入
+Iter 5:        [B] [C] [D] [E]  ← E 加入
+Iter 6:        [B] [D] [E]      ← C 完成...</code></pre>
+<p>与 Static Batching 相比：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">特性</th>
+<th style="text-align: left;">Static Batching</th>
+<th style="text-align: left;">Continuous Batching</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Batch 生命周期</td>
+<td style="text-align: left;">固定</td>
+<td style="text-align: left;">每轮动态调整</td>
+</tr>
+<tr>
+<td style="text-align: left;">新请求加入</td>
+<td style="text-align: left;">等 Batch 结束</td>
+<td style="text-align: left;">每轮都可以尝试加入</td>
+</tr>
+<tr>
+<td style="text-align: left;">已完成请求</td>
+<td style="text-align: left;">占位直到 Batch 结束</td>
+<td style="text-align: left;">立即释放资源</td>
+</tr>
+<tr>
+<td style="text-align: left;">Padding</td>
+<td style="text-align: left;">通常需要</td>
+<td style="text-align: left;">不需要为了 Batch 对齐而等待</td>
+</tr>
+<tr>
+<td style="text-align: left;">GPU 利用率</td>
+<td style="text-align: left;">请求完成后逐渐下降</td>
+<td style="text-align: left;">可以持续填充</td>
+</tr>
+<tr>
+<td style="text-align: left;">调度复杂度</td>
+<td style="text-align: left;">较低</td>
+<td style="text-align: left;">较高</td>
+</tr>
+</tbody>
+</table>
+<p>因此，Continuous Batching 的核心不是简单地：</p>
+<blockquote>
+<p>“把更多 Request 放进 Batch。”</p>
+</blockquote>
+<p>而是：</p>
+<blockquote>
+<p><strong>每一次迭代，都重新决定 GPU 这一轮应该服务哪些 Request。</strong></p>
+</blockquote>
+<h2 id="2-chunked-prefill为什么一个-request-也不能一次吃完">2. Chunked Prefill：为什么一个 Request 也不能一次吃完？</h2>
+<p>Continuous Batching 解决了：</p>
+<blockquote>
+<p><strong>不同 Request 之间如何动态加入和退出。</strong></p>
+</blockquote>
+<p>但还有一个问题：</p>
+<blockquote>
+<p><strong>如果某一个 Request 自己就非常大怎么办？</strong></p>
+</blockquote>
+<p>例如一个 32K token 的 Prompt：</p>
+<pre><code>Request A┌─────────────────────────────────────────────┐│              32K Prompt                     
+│└─────────────────────────────────────────────┘</code></pre>
+<p>如果一次性完成 Prefill：</p>
+<pre><code>Iteration 1：[A: Prefill 32K]</code></pre>
+<p>那么 A 可能长时间占用 GPU。</p>
+<p>此时其他已经处于 Decode 状态的请求：</p>
+<pre><code>Request B → Decode
+Request C → Decode
+Request D → Decode</code></pre>
+<p>都可能被迫等待。</p>
+<p>于是出现典型的 Head-of-Line Blocking：</p>
+<pre><code>Long Prefill████████████████████████████████████████
+B Decode   ──────────────────────────────
+C Decode   ──────────────────────────────
+D Decode   ──────────────────────────────  
+↑              被阻塞</code></pre>
+<p>这会直接影响 Decode 请求的 TPOT。</p>
+<h3 id="21-chunked-prefill">2.1 Chunked Prefill</h3>
+<p>因此，长 Prompt 也需要被拆成多个 Chunk：</p>
+<pre><code>32K Prompt┌──────┬──────┬──────┬──────┬──────┐│Chunk1│Chunk2│Chunk3│Chunk4│Chunk5│ ...└──────┴──────┴──────┴──────┴──────┘</code></pre>
+<p>例如：</p>
+<pre><code>Iteration 1:[A:
+Chunk1] [B: Decode] [C: Decode]
+Iteration 2:[A:
+Chunk2] [B: Decode] [C: Decode]
+Iteration 3:[A:
+Chunk3] [B: Decode] [C: Decode]...</code></pre>
+<p>这样，A 不再一次性独占 GPU，而是和其他请求交替推进。</p>
+<pre><code>没有 Chunked Prefill：Iter 1   [Long Prefill ████████████████████]
+Iter 2   [Long Prefill ████████████████████]
+Iter 3   [Long Prefill ████████████████████]
+Iter 4   [Decode A][Decode B][Decode C]有 Chunked Prefill：Iter 1   [Chunk1][Decode A][Decode B]
+Iter 2   [Chunk2][Decode A][Decode B]
+Iter 3   [Chunk3][Decode A][Decode B]
+Iter 4   [Chunk4][Decode A][Decode B]...</code></pre>
+<h3 id="22-chunked-prefill-的代价">2.2 Chunked Prefill 的代价</h3>
+<p>Chunked Prefill 并不是免费优化。</p>
+<p>它实际上是在做一个典型的：</p>
+<blockquote>
+<p><strong>TTFT ↔︎ TPOT trade-off</strong></p>
+</blockquote>
+<p>如果长 Prompt 一次性执行：</p>
+<pre><code>Long Request  
+↓快速完成 Prefill  
+↓TTFT 较低但：Decode Requests  
+↓被阻塞  
+↓TPOT 出现尖峰</code></pre>
+<p>如果采用 Chunked Prefill：</p>
+<pre><code>Long Request  
+↓Prefill 被拆成多个 Chunk  
+↓TTFT 上升但：Decode Requests  
+↓可以持续执行  
+↓TPOT 更平稳</code></pre>
+<p>因此，Chunked Prefill 的本质不是简单的“把 Prompt 切小”。</p>
+<p>更准确地说：</p>
+<blockquote>
+<p><strong>Chunked Prefill 将一个巨大的 Prefill 工作量拆成多个可调度的 token 额度，使 Scheduler 可以在长 Prompt 与 Decode 请求之间重新分配 GPU 计算资源。</strong></p>
+</blockquote>
+<p>这里已经出现了一个非常关键的概念：</p>
+<blockquote>
+<p><strong>Token Budget。</strong></p>
+</blockquote>
+<h3 id="23-long_prefill_token_threshold">2.3 <code>long_prefill_token_threshold</code></h3>
+<p>在 vLLM 中，可以通过：</p>
+<pre><code>long_prefill_token_threshold</code></pre>
+<p>限制一次 Prefill 可以推进的 token 数量。</p>
+<p>概念上可以理解为：</p>
+<pre><code>num_new_tokens = min(    num_new_tokens,    long_prefill_token_threshold,)</code></pre>
+<p>例如：</p>
+<pre><code>Prompt = 2050 tokens
+long_prefill_token_threshold = 512</code></pre>
+<p>那么这个 Prefill 最多可以被拆成：</p>
+<pre><code>512 + 512 + 512 + 512 + 2</code></pre>
+<p>即：</p>
+<pre><code>Chunk 1 → 512
+Chunk 2 → 512
+Chunk 3 → 512
+Chunk 4 → 512
+Chunk 5 → 2</code></pre>
+<p>代价是这个请求需要更多轮才能完成 Prefill，TTFT 可能上升；收益则是其他 Decode 请求不容易被一个长 Prefill 长时间阻塞。</p>
+<p>因此：</p>
+<blockquote>
+<p><strong>Chunked Prefill 实际上是在调度层把“长请求”变成多个可以跨 iteration 分配的工作单元。</strong></p>
+</blockquote>
+<p>而接下来真正需要回答的问题是：</p>
+<blockquote>
+<p><strong>Scheduler 每一轮到底有多少工作额度可以分配？又应该如何在不同 Request 之间分配？</strong></p>
+</blockquote>
+<h2 id="3-token-budgetscheduler-每一轮到底怎么分配">3. Token Budget：Scheduler 每一轮到底怎么分配？</h2>
+<p>这一节是整个 Scheduler 的核心。</p>
+<p>前面的 Continuous Batching 解决了：</p>
+<blockquote>
+<p>Request 可以动态加入和退出。</p>
+</blockquote>
+<p>Chunked Prefill 又解决了：</p>
+<blockquote>
+<p>一个 Request 也可以被拆成多个部分逐步推进。</p>
+</blockquote>
+<p>于是 Scheduler 每一轮都面临一个非常具体的问题：</p>
+<blockquote>
+<p><strong>这一轮 GPU 最多处理多少 token？这些 token 应该分给哪些 Request？</strong></p>
+</blockquote>
+<h3 id="31-request-是调度对象token-是调度资源">3.1 Request 是调度对象，Token 是调度资源</h3>
+<p>这里需要先纠正一个非常容易产生误解的说法。</p>
+<p>不要简单理解成：</p>
+<blockquote>
+<p>Scheduler 调度的不是 Request，而是 Token。</p>
+</blockquote>
+<p>更准确的说法是：</p>
+<blockquote>
+<p><strong>Request 是 Scheduler 的调度对象，Token 是 Scheduler 分配计算资源的基本单位。</strong></p>
+</blockquote>
+<p>也就是说：</p>
+<pre><code>                    Scheduler                        │              调度哪些 Request？                        │  
+▼
+Request A
+Request B
+Request C                        │                        │                 每个 Request                 分配多少 token？                        │  
+▼              num_new_tokens</code></pre>
+<p>所以，Scheduler 并不是把 token 当成独立任务进行调度，而是：</p>
+<blockquote>
+<p><strong>以 Request 为对象，以 token 为资源，决定每个 Request 本轮推进多少 token。</strong></p>
+</blockquote>
+<h3 id="32-每一轮首先确定-token-budget">3.2 每一轮首先确定 Token Budget</h3>
+<p>Scheduler 首先需要确定：</p>
+<blockquote>
+<p><strong>本轮最多允许处理多少 token？</strong></p>
+</blockquote>
+<p>在 vLLM V1 中，Scheduler 有一个配置项：</p>
+<pre><code>max_num_scheduled_tokens</code></pre>
+<p>它定义的是：</p>
+<blockquote>
+<p><strong>一次 <code>schedule()</code> iteration 中，最多允许调度多少个 token。</strong></p>
+</blockquote>
+<p>例如：</p>
+<pre><code>max_num_scheduled_tokens = 512</code></pre>
+<p>那么：</p>
+<pre><code>本轮 Token Budget = 512</code></pre>
+<p>意味着：</p>
+<pre><code>这一轮最多安排 512 token 的计算工作</code></pre>
+<p>所有 Request 在这一轮消耗的 token 额度之和不能超过这个预算：</p>
+<pre><code>Σ num_new_tokens_i ≤ 512</code></pre>
+<p>于是 Scheduler 的问题就可以抽象成：</p>
+<pre><code>给每一个 Request 分配 x_i 个 token满足：0 ≤ x_i ≤ request_remaining_iΣ x_i ≤ Token Budget</code></pre>
+<p>这就是 Scheduler 最核心的资源分配问题。</p>
+<h3 id="33-request-还需要推进多少">3.3 Request 还需要推进多少？</h3>
+<p>Scheduler 需要知道：</p>
+<blockquote>
+<p><strong>这个 Request 到底还差多少 token？</strong></p>
+</blockquote>
+<p>vLLM 中有两个非常关键的量：</p>
+<pre><code>num_tokens_with_specnum_computed_tokens</code></pre>
+<p>它们可以帮助我们理解 Scheduler 的工作方式。</p>
+<h4 id="num_computed_tokens"><code>num_computed_tokens</code></h4>
+<p>表示这个 Request 当前已经完成计算的 token 数量。</p>
+<p>例如：<code>Prompt = 2050 tokens</code>，而当前：<code>num_computed_tokens = 1024</code>，</p>
+<p>这意味着：</p>
+<pre><code>前 1024 tokens  
+↓已经完成计算  
+↓对应 KV Cache 已经建立</code></pre>
+<h4 id="num_tokens_with_spec"><code>num_tokens_with_spec</code></h4>
+<p>它表示当前 Request 这一轮希望推进到的目标 token 位置。</p>
+<p>普通 Decode 情况下，通常只需要推进一个 token：</p>
+<pre><code>num_tokens_with_spec ≈ num_computed_tokens + 1</code></pre>
+<p>而如果涉及 speculative decoding，则可能一次需要推进多个 token：</p>
+<pre><code>num_tokens_with_spec &gt; num_computed_tokens + 1</code></pre>
+<p>因此，Scheduler 可以计算：</p>
+<pre><code>remaining_tokens = num_tokens_with_spec - num_computed_tokens</code></pre>
+<p>也就是：</p>
+<blockquote>
+<p><strong>这个 Request 当前还需要多少 token 的计算额度。</strong></p>
+</blockquote>
+<h3 id="34-num_new_tokens本轮真正分配多少">3.4 <code>num_new_tokens</code>：本轮真正分配多少？</h3>
+<p>Scheduler 最终真正关心的是：</p>
+<pre><code>num_new_tokens</code></pre>
+<p>即：</p>
+<blockquote>
+<p><strong>这个 Request 在本轮到底推进多少 token。</strong></p>
+</blockquote>
+<p>概念上可以理解为：</p>
+<pre class="wide"><code>remaining_tokens = (    req.num_tokens_with_spec    - req.num_computed_tokens)num_new_tokens = min(    remaining_tokens,    token_budget,    other_constraints,)</code></pre>
+<p>然后：</p>
+<pre><code>token_budget -= num_new_tokens</code></pre>
+<p>于是：</p>
+<pre><code>                  Token Budget                       │  
+▼
+┌─────────────┐                │    512      │
+└──────┬──────┘                       │
+┌─────────┼─────────┐  
+▼  
+▼  
+▼           Req A     Req B     Req C           400         1         1             │         │         │
+└─────────┼─────────┘  
+▼                  剩余 110</code></pre>
+<p>这就是 Scheduler 最核心的工作。</p>
+<h3 id="35-用一个完整例子看懂-schedule">3.5 用一个完整例子看懂 <code>schedule()</code></h3>
+<p>假设当前：</p>
+<pre><code>max_num_scheduled_tokens = 512</code></pre>
+<p>也就是：</p>
+<pre><code>Token Budget = 512</code></pre>
+<p>当前有三个正在运行的 Request：</p>
+<pre><code>Request A：长 Prompt Prefillremaining = 400
+Request B：普通 Decoderemaining = 1
+Request C：普通 Decoderemaining = 1</code></pre>
+<p>Scheduler 可以分配：</p>
+<pre><code>A → 400B → 1C → 1</code></pre>
+<p>消耗：</p>
+<pre><code>400 + 1 + 1 = 402</code></pre>
+<p>于是：</p>
+<pre><code>剩余 Token Budget    =512 - 402    =110</code></pre>
+<p>此时 waiting 队列中还有：</p>
+<pre><code>Request D：Prompt = 300 tokens</code></pre>
+<p>Scheduler 不需要等待 A、B、C 全部完成。</p>
+<p>只要还有预算，就可以继续接纳 D：</p>
+<pre><code>D → 110</code></pre>
+<p>最终：</p>
+<pre class="wider"><code>┌─────────────────────────────────────────────┐│          Token Budget = 512                 
+│├─────────────────────────────────────────────┤│ Request A：Prefill       400 tokens         ││ Request B：Decode          1 token          ││ Request C：Decode          1 token          ││ Request D：Prefill       110 tokens         
+│├─────────────────────────────────────────────┤│ Total                    512 tokens         
+│└─────────────────────────────────────────────┘</code></pre>
+<p>这就是一个典型的 Mixed Batch。</p>
+<p>但注意：</p>
+<blockquote>
+<p><strong>此时 Scheduler 根本不需要创建三个不同的 Batch。</strong></p>
+</blockquote>
+<p>它只是在一个统一的 Token Budget 下：</p>
+<pre><code>A → 400B → 1C → 1D → 110</code></pre>
+<h3 id="36-decode-为什么也是同一个调度模型">3.6 Decode 为什么也是同一个调度模型？</h3>
+<p>现在看普通 Decode。</p>
+<p>假设：</p>
+<pre><code>Request B：num_computed_tokens = 100num_tokens_with_spec = 101</code></pre>
+<p>那么：</p>
+<pre><code>remaining_tokens = 101 - 100 = 1</code></pre>
+<p>因此：</p>
+<pre><code>B → 1 token</code></pre>
+<p>这就是普通 Decode。</p>
+<p>而一个长 Prompt：</p>
+<pre><code>num_computed_tokens = 1000num_tokens_with_spec = 1500</code></pre>
+<p>那么：</p>
+<pre><code>remaining_tokens = 1500 - 1000 = 500</code></pre>
+<p>这就是 Prefill workload。</p>
+<p>因此，从 Scheduler 的角度看：</p>
+<pre><code>Prefill：remaining_tokens 很大Decode：remaining_tokens 通常为 1Chunked Prefill：remaining_tokens 很大但单轮只能推进一部分Speculative Decode：remaining_tokens 可能大于 1</code></pre>
+<p>所以可以得到一个非常重要的结论：</p>
+<blockquote>
+<p><strong>从 Scheduler 的角度，Prefill、Decode 并不是两套完全独立的调度算法，而只是不同 Request 在当前 iteration 中具有不同的 token 推进需求。</strong></p>
+</blockquote>
+<p>Prefill 和 Decode 依然是非常重要的性能分析概念，但它们并不意味着 Scheduler 内部必须存在两个完全独立的“Prefill Scheduler”和“Decode Scheduler”。</p>
+<h3 id="37-scheduler-的核心源码逻辑">3.7 Scheduler 的核心源码逻辑</h3>
+<p>在 vLLM V1 中，关键逻辑位于：</p>
+<pre><code>vllm/v1/core/sched/scheduler.py</code></pre>
+<p>其中 <code>Scheduler.schedule()</code> 可以概念化为：</p>
+<div class="sourceCode" id="cb56"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb56-1"><a href="#cb56-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> schedule(<span class="va">self</span>, throttle_prefills<span class="op">=</span><span class="va">False</span>):    token_budget <span class="op">=</span> <span class="va">self</span>.max_num_scheduled_tokens    <span class="co"># 1. 先处理已经 Running 的 Request    for req in self.running:        target = req.num_tokens_with_spec        num_new_tokens = (            target - req.num_computed_tokens        )        num_new_tokens = min(            num_new_tokens,            token_budget,        )        # 长 Prefill 的额外限制        if self.scheduler_config.long_prefill_token_threshold &gt; 0:            num_new_tokens = min(                num_new_tokens,                self.scheduler_config.long_prefill_token_threshold,            )        # 2. 尝试为这些 token 分配 KV Cache        blocks = self.kv_cache_manager.allocate_slots(            req,            num_new_tokens,        )        if blocks is None:            self._preempt_request(req)            continue        # 3. 消耗本轮 Token Budget        token_budget -= num_new_tokens    # 4. 再尝试接纳 Waiting Request    for req in self.waiting:        computed_blocks, num_computed = (            self.kv_cache_manager.get_computed_blocks(req)        )        num_new_tokens = (            req.num_tokens_with_spec            - num_computed        )        num_new_tokens = min(            num_new_tokens,            token_budget,        )        blocks = self.kv_cache_manager.allocate_slots(            req,            num_new_tokens,        )        if blocks is None:            break        req.status = RequestStatus.RUNNING        token_budget -= num_new_tokens    return SchedulerOutput(...)</span></span></code></pre></div>
+<p>这里最值得注意的是：</p>
+<pre><code>num_new_tokens = (    req.num_tokens_with_spec    - req.num_computed_tokens)</code></pre>
+<p>以及：</p>
+<pre><code>token_budget -= num_new_tokens</code></pre>
+<p>它们共同构成了 Scheduler 的核心逻辑：</p>
+<pre><code>Request 当前还差多少？        │  
+▼remaining_tokens        │        │ 与本轮 Token Budget 比较  
+▼num_new_tokens        │  
+▼allocate_slots()        │  
+▼消耗 Token Budget        │  
+▼继续处理下一个 Request</code></pre>
+<p>需要特别注意：</p>
+<blockquote>
+<p>上面的两个 <code>for</code> 循环并不是“Decode 循环”和“Prefill 循环”。</p>
+</blockquote>
+<p>它们更准确地表示：</p>
+<pre><code>Running Requests  
+↓Waiting Requests</code></pre>
+<p>在这两个集合中，Scheduler 都是在做同一件事情：</p>
+<blockquote>
+<p><strong>计算 Request 当前需要推进多少 token，并在本轮剩余 Token Budget 和其他资源约束下决定实际推进多少。</strong></p>
+</blockquote>
+<h3 id="38-token-budget-与-kv-cache-是两个不同维度的约束">3.8 Token Budget 与 KV Cache 是两个不同维度的约束</h3>
+<p>到这里还需要区分一个非常重要的概念。</p>
+<p>Scheduler 同时受到两类资源约束：</p>
+<pre><code>                Scheduler                    │
+┌─────────┴─────────┐          │                   │  
+▼  
+▼     Compute Resource     Memory Resource     Token Budget          KV Cache          │                   │  
+▼  
+▼  本轮最多算多少 token    能否容纳这些 token</code></pre>
+<p>Token Budget 回答：</p>
+<blockquote>
+<p><strong>这一轮最多执行多少计算？</strong></p>
+</blockquote>
+<p>KV Cache 回答：</p>
+<blockquote>
+<p><strong>这些 token 对应的 KV Cache 是否有地方存？</strong></p>
+</blockquote>
+<p>因此，即使：</p>
+<pre><code>Token Budget = 512</code></pre>
+<p>也不代表一定可以执行 512 tokens。</p>
+<p>例如：</p>
+<pre><code>Token Budget 足够        │  
+▼需要分配 KV Cache        │  
+▼KV Cache Block 不够        │  
+▼无法继续接纳 / 需要抢占</code></pre>
+<p>这就是下一节 Admission Control 与 Preemption 要解决的问题。</p>
+<p>整体调度流程如下：</p>
+<pre><code>                    Scheduler                        │  
+▼          max_num_scheduled_tokens                        │  
+▼
+┌──────────────┐                │ Token Budget │
+└──────┬───────┘                       │  
+▼             Request token demand                       │  
+▼                num_new_tokens                       │  
+▼                allocate_slots()                       │  
+▼                 KV Cache                       │
+┌─────────┴─────────┐  
+▼  
+▼           足够                  不足             │                   │  
+▼  
+▼          执行                  等待/抢占</code></pre>
+<h2 id="4-mixed-batch为什么-prefilldecode-与-speculative-可以共存">4. Mixed Batch：为什么 Prefill、Decode 与 Speculative 可以共存？</h2>
+<p>前面的 Token Budget 机制实际上已经自然产生了 Mixed Batch。</p>
+<p>所谓 Mixed Batch，并不是 Scheduler 专门定义了一种新的：</p>
+<pre><code>MixedBatch</code></pre>
+<p>而是：</p>
+<blockquote>
+<p><strong>多个不同类型的 Request 在同一个 Token Budget 下同时获得 token 推进额度。</strong></p>
+</blockquote>
+<h3 id="41-一轮-gpu-中可以同时有什么">4.1 一轮 GPU 中可以同时有什么？</h3>
+<p>假设当前：</p>
+<pre><code>Token Budget = 512</code></pre>
+<p>系统中有：</p>
+<pre><code>Request A：长 Prompt，还没有完成 Prefill
+Request B：正常 Decode
+Request C：Speculative Decode
+Request D：刚刚进入系统，需要 Prefill</code></pre>
+<p>Scheduler 可以得到类似这样的分配：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">Request</th>
+<th style="text-align: right;">本轮 token</th>
+<th style="text-align: left;">Workload</th>
+<th style="text-align: left;">含义</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">A</td>
+<td style="text-align: right;">256</td>
+<td style="text-align: left;">Prefill</td>
+<td style="text-align: left;">长 Prompt 的一个 Chunk</td>
+</tr>
+<tr>
+<td style="text-align: left;">B</td>
+<td style="text-align: right;">1</td>
+<td style="text-align: left;">Decode</td>
+<td style="text-align: left;">生成下一个 token</td>
+</tr>
+<tr>
+<td style="text-align: left;">C</td>
+<td style="text-align: right;">5</td>
+<td style="text-align: left;">Speculative Decode</td>
+<td style="text-align: left;">推进真实 token + 候选 token</td>
+</tr>
+<tr>
+<td style="text-align: left;">D</td>
+<td style="text-align: right;">250</td>
+<td style="text-align: left;">Prefill</td>
+<td style="text-align: left;">新请求开始 Prefill</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Total</strong></td>
+<td style="text-align: right;"><strong>512</strong></td>
+<td style="text-align: left;"></td>
+<td style="text-align: left;"></td>
+</tr>
+</tbody>
+</table>
+<p>于是这一轮：</p>
+<pre class="wide"><code>┌─────────────────────────────────────────────┐│             Token Budget = 512              
+│├─────────────────────────────────────────────┤│ A：Prefill
+Chunk       256 tokens           ││ B：Decode                1 token            ││ C：Speculative           5 tokens           ││ D：Prefill              250 tokens           
+│├─────────────────────────────────────────────┤│ Total                   512 tokens           
+│└─────────────────────────────────────────────┘</code></pre>
+<p>这就是 Mixed Batch。</p>
+<h3 id="42-mixed-batch-并不是三种-batch-拼起来">4.2 Mixed Batch 并不是三种 Batch 拼起来</h3>
+<p>这里非常容易产生误解。</p>
+<p>不要理解成：</p>
+<pre><code>Prefill Batch      +Decode Batch      +Speculative Batch  
+↓Mixed Batch</code></pre>
+<p>更准确的理解是：</p>
+<pre><code>                 Scheduler                     │  
+▼              Token Budget                     │
+┌──────────┼──────────┐  
+▼  
+▼  
+▼        Req A      Req B      Req C          │          │          │       256 token    1 token    5 token          │          │          │
+└──────────┼──────────┘  
+▼                SchedulerOutput</code></pre>
+<p>也就是说：</p>
+<blockquote>
+<p><strong>Scheduler 只有一套统一的 token 分配逻辑，而 Prefill、Decode、Speculative 只是不同 Request 在这一轮产生了不同的 token 推进需求。</strong></p>
+</blockquote>
+<p>这也是为什么 Token Budget 是理解 Mixed Batch 的关键。</p>
+<h3 id="43-speculative-decoding-为什么可以自然融入">4.3 Speculative Decoding 为什么可以自然融入？</h3>
+<p>普通 Decode：</p>
+<pre><code>当前已经计算到 token N下一轮：推进 1 token</code></pre>
+<p>因此：</p>
+<pre><code>remaining ≈ 1</code></pre>
+<p>而 Speculative Decoding 可能希望一次推进多个 token：</p>
+<pre><code>当前：NSpeculative：N+1N+2N+3N+4</code></pre>
+<p>因此：</p>
+<pre><code>remaining &gt; 1</code></pre>
+<p>对于 Scheduler 来说，两者最终都只是：</p>
+<pre><code>Request  
+↓num_tokens_with_spec  
+↓num_computed_tokens  
+↓remaining tokens  
+↓num_new_tokens</code></pre>
+<p>所以 Scheduler 不需要重新设计一套：</p>
+<pre><code>Speculative Scheduler</code></pre>
+<p>而是使用同一个 Token Budget 模型处理。</p>
+<p>这也是一个非常重要的架构思想：</p>
+<blockquote>
+<p><strong>上层优化可以改变一个 Request 一轮希望推进的 token 数量，但不需要改变 Scheduler 的基本资源分配抽象。</strong></p>
+</blockquote>
+<p>因此，Speculative Decoding 与普通 Decode 可以在同一个 iteration 中共存。</p>
+<h3 id="44-scheduleroutput调度完成后发生什么">4.4 SchedulerOutput：调度完成后发生什么？</h3>
+<p>Scheduler 完成本轮决策后，并不会直接执行模型计算。</p>
+<p>它会将本轮调度结果通过：</p>
+<pre><code>SchedulerOutput</code></pre>
+<p>传递给执行层。</p>
+<p>可以把整个过程理解为：</p>
+<pre><code>                 Scheduler                     │                     │ schedule()  
+▼
+┌─────────────────────┐          │   SchedulerOutput   │
+├─────────────────────┤          │ Request 列表        │          │ token 数量          │          │ KV Cache 分配结果   │          │ 其他调度元数据      │
+└──────────┬──────────┘                     │  
+▼                 ModelRunner                     │  
+▼              InputBatch                     │
+├── slot_mapping
+├── block_table
+└── attention metadata                     │  
+▼                 GPU 执行</code></pre>
+<p>因此：</p>
+<blockquote>
+<p><strong>Scheduler 负责“决定这一轮算什么”，执行层负责“把这个决定真正变成 GPU 上的计算”。</strong></p>
+</blockquote>
+<p>执行层需要通过 <code>InputBatch</code>、<code>slot_mapping</code>、block table 和 attention metadata，把这些不同形态的 token 组织成一次 GPU forward。</p>
+<pre class="wider"><code>┌──────────────── 一轮 Mixed Batch 的 token 构成 ──────────────────────┐│                                                                      ││  SchedulerOutput (本轮 token 预算分配结果):                            ││                                                                      ││
+┌─ Req A (长 prefill, 已推进 256, 本轮再推 256) ──────────────────┐ ││  │  |████████████████████████|  ← 256 个 prefill tokens              │ ││  │  block_table = [7, 13]  (新分配的块)                              │ ││
+└──────────────────────────────────────────────────────────────────┘ ││                                                                      ││
+┌─ Req B (普通 decode) ───────────────────────────────────────────┐ ││  │  |█|  ← 1 个 decode token                                        │ ││  │  block_table 追加 slot 到已有块                                   │ ││  │  KV Cache 已累积 seq_len=512                                     │ ││
+└──────────────────────────────────────────────────────────────────┘ ││                                                                      ││
+┌─ Req C (decode, spec decode) ───────────────────────────────────┐ ││  │  |█ █ █ █ █|  ← 1 个真实 token + 4 个候选 token                  │ ││  │  block_table 额外预留 lookahead slots                             │ ││
+└──────────────────────────────────────────────────────────────────┘ ││                                                                      ││  GPU 侧组装:                                                          ││
+┌──────────────────────────────────────────────────────────────────┐ ││  │  InputBatch (扁平的 token 序列):                                  │ ││  │  [A₀ A₁ … A₂₅₅ | B₀ | C₀ C₁ C₂ C₃ C₄]                         │ ││  │  total_tokens = 256 + 1 + 5 = 262                                │ ││  │                                                                  │ ││  │  slot_mapping (每个 token 的 KV 写入位置):                        │ ││  │  A: [block7:0..15, block13:0..15, ...]  (新块, 全部写入)         │ ││  │  B: [block3:slot15]                    (追加到已存在块尾部)        │ ││  │  C: [block5:slot12..16]               (含 lookahead 预留)        │ ││  │                                                                  │ ││  │  attention metadata 统计（用于 backend 内部分支）:                 │ ││  │  num_prefill_tokens = 256  → backend 先处理这 256 个 prefill token│ ││  │  num_decode_tokens  = 6    → 再处理这 6 个 decode/candidate token │ ││  │  block_table (per-req) 告诉 kernel 每个请求的 KV 块映射            │ ││  │  query_start_loc 区分不同请求的 token 起始位置                     │ ││
+└──────────────────────────────────────────────────────────────────┘ ││                                                                      ││  关键: 模型级只有一个 attention backend, 不是 per-request 切换。       ││  该 backend 根据 metadata 中的 prefill/decode token 计数,              ││  在自己的 forward 内调用不同的底层 kernel (如 FlashInfer 的             ││  trtllm_batch_context_with_kv_cache 和 trtllm_batch_decode_...)。     
+│└──────────────────────────────────────────────────────────────────────┘</code></pre>
+<h2 id="5-admission-control-与-preemptionkv-cache-不够怎么办">5. Admission Control 与 Preemption：KV Cache 不够怎么办？</h2>
+<p>到这里，Scheduler 已经解决了：</p>
+<blockquote>
+<p><strong>计算资源怎么分？</strong></p>
+</blockquote>
+<p>但还存在另外一个问题：</p>
+<blockquote>
+<p><strong>如果 KV Cache 已经没有足够空间了怎么办？</strong></p>
+</blockquote>
+<p>这是 LLM Serving 中非常现实的问题。</p>
+<p>因为每推进一个 token，都可能需要增加对应的 KV Cache。</p>
+<p>于是 Scheduler 同时受到：</p>
+<pre><code>计算约束：Token Budget内存约束：KV Cache Blocks</code></pre>
+<h3 id="51-admission-control不是所有-request-都能立即进入-running">5.1 Admission Control：不是所有 Request 都能立即进入 Running</h3>
+<p>假设：</p>
+<pre><code>GPU KV Cache┌─────────────────────────────┐│ █ █ █ █ █ █ █ █ █ █ █ █ █ ││ █ █ █ █ █ █ █ █ █ █ █ █ █ ││ █ █ █ █ █ █ █ █ █ █ █ █ █ 
+│└─────────────────────────────┘Free Blocks = 很少</code></pre>
+<p>此时来了一个新的 Request：</p>
+<pre><code>Request DPrompt = 4K tokens</code></pre>
+<p>即使：</p>
+<pre><code>Token Budget 足够</code></pre>
+<p>也不代表 D 能立即运行。</p>
+<p>因为：</p>
+<pre><code>Token Budget 足够        │  
+▼需要 KV Cache        │  
+▼Free Blocks 不足        │  
+▼无法继续</code></pre>
+<p>因此 Scheduler 在接纳 Waiting Request 时，需要同时考虑 KV Cache 是否能够满足需求。</p>
+<p>这就是 Admission Control。</p>
+<p>可以简单理解成：</p>
+<blockquote>
+<p><strong>先判断“GPU 有没有能力接纳这个 Request”，再决定是否让它进入 Running。</strong></p>
+</blockquote>
+<h3 id="52-kv-cache-不够preemption">5.2 KV Cache 不够：Preemption</h3>
+<p>如果当前 Running Requests 已经占满 KV Cache，而又有更高优先级的调度需求，Scheduler 就可能需要抢占某些 Request。</p>
+<p>概念流程：</p>
+<pre><code>KV Cache 不足      │  
+▼需要释放 KV Cache      │  
+▼选择一个 Running Request      │  
+▼Preemption      │
+├── 释放 KV Cache      │
+├── Request 状态变为 PREEMPTED      │
+└── 重新进入 Waiting</code></pre>
+<p>vLLM V1 当前主要使用 <strong>Recomputation</strong> 思路：</p>
+<pre><code>Preempt  
+↓释放该 Request 的 KV Cache  
+↓num_computed_tokens = 0  
+↓重新进入 Waiting  
+↓恢复运行时重新计算</code></pre>
+<p>也就是说：</p>
+<blockquote>
+<p><strong>抢占并不是把 Request 本身删除，而是释放它占用的 KV Cache，之后再重新计算。</strong></p>
+</blockquote>
+<h3 id="53-recomputation-vs-swapping">5.3 Recomputation vs Swapping</h3>
+<p>从实现策略上，可以将抢占后的处理方式分为两类：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">策略</th>
+<th style="text-align: left;">做法</th>
+<th style="text-align: left;">优点</th>
+<th style="text-align: left;">缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Recomputation</td>
+<td style="text-align: left;">释放 KV Cache，恢复时重新计算</td>
+<td style="text-align: left;">不需要额外 CPU KV 存储</td>
+<td style="text-align: left;">浪费 GPU 计算</td>
+</tr>
+<tr>
+<td style="text-align: left;">Swapping</td>
+<td style="text-align: left;">GPU KV → CPU，恢复时再传回 GPU</td>
+<td style="text-align: left;">保留已经计算的 KV</td>
+<td style="text-align: left;">消耗 CPU 内存和 PCIe 带宽</td>
+</tr>
+<tr>
+<td style="text-align: left;">Quantization + Offload</td>
+<td style="text-align: left;">KV 量化后再换出</td>
+<td style="text-align: left;">减少传输量</td>
+<td style="text-align: left;">增加量化误差和实现复杂度</td>
+</tr>
+</tbody>
+</table>
+<p>vLLM V1 当前主要采用 Recomputation。</p>
+<p>其核心逻辑可以概念化为：</p>
+<div class="sourceCode" id="cb87"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb87-1"><a href="#cb87-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> _preempt_request(request, ...):    <span class="va">self</span>._free_request_blocks(request)    request.status <span class="op">=</span> RequestStatus.PREEMPTED    request.num_computed_tokens <span class="op">=</span> <span class="dv">0</span>    request.num_preemptions <span class="op">+=</span> <span class="dv">1</span>    <span class="va">self</span>.waiting.prepend_request(request)</span></code></pre></div>
+<p>其中最关键的是：</p>
+<pre><code>request.num_computed_tokens = 0</code></pre>
+<p>这意味着：</p>
+<blockquote>
+<p><strong>从 Scheduler 的角度，这个 Request 后续需要重新计算。</strong></p>
+</blockquote>
+<h3 id="54-为什么-recomputation-不一定像想象中那么昂贵">5.4 为什么 Recomputation 不一定像想象中那么昂贵？</h3>
+<p>乍看之下：</p>
+<pre><code>Preemption  
+↓KV Cache 全部释放  
+↓重新 Prefill  
+↓不是浪费大量计算吗？</code></pre>
+<p>理论上确实如此。</p>
+<p>但 Prefix Cache 会改变实际成本。</p>
+<p>如果 Request 的大量前缀仍然命中 Prefix Cache：</p>
+<pre><code>Request┌───────────────────────────────────────┐│ Prefix Cache Hit │ 需要重新计算       
+│└───────────────────────────────────────┘        │                    │  
+▼  
+▼      跳过                  重算</code></pre>
+<p>那么恢复时并不一定需要从头重新计算整个 Prompt。</p>
+<p>因此：</p>
+<blockquote>
+<p><strong>Prefix Cache 可以显著降低 Recomputation 的实际代价。</strong></p>
+</blockquote>
+<p>这也是为什么 KV Cache、Prefix Cache 和 Scheduler 并不是三个互相独立的模块，而是共同参与请求生命周期管理。</p>
+<h3 id="55-lifo-preemption-与重新入队">5.5 LIFO Preemption 与重新入队</h3>
+<p>在当前实现中，抢占选择和重新入队还涉及队列策略。</p>
+<p>一个重要原则是：</p>
+<blockquote>
+<p><strong>尽量避免已经运行很久的 Request 被反复抢占。</strong></p>
+</blockquote>
+<p>当前实现采用 LIFO 风格的抢占策略，并且被抢占的 Request 会重新放回 Waiting 队列的前部，以便尽快恢复。</p>
+<p>概念上：</p>
+<pre><code>Running：ABCD</code></pre>
+<p>如果 D 被抢占：</p>
+<pre><code>D↓Preempt↓Waiting Queue Head</code></pre>
+<p>恢复时：</p>
+<pre><code>Waiting：D → A → B → ...</code></pre>
+<p>这样可以避免被抢占的 Request 长时间得不到恢复。</p>
+<h3 id="56-watermark给-kv-cache-留一点安全余量">5.6 Watermark：给 KV Cache 留一点安全余量</h3>
+<p>Scheduler 还需要避免一种非常糟糕的情况：</p>
+<pre><code>接纳 Request  
+↓KV Cache 几乎耗尽  
+↓下一轮马上又不够  
+↓立即 Preemption  
+↓刚运行又被抢占  
+↓反复震荡</code></pre>
+<p>因此可以预留一定比例的 KV Cache 作为安全余量。</p>
+<p>这就是 Watermark 的基本思想：</p>
+<pre><code>KV Cache Blocks┌────────────────────────────────┐│        可正常使用              ││                                ││                                
+│├────────────────────────────────┤│        Watermark               ││        安全余量                
+│└────────────────────────────────┘</code></pre>
+<p>概念上：</p>
+<pre><code>watermark_blocks = int(    watermark * num_blocks)</code></pre>
+<p>在接纳新的 Waiting / Preempted Request 时：</p>
+<pre><code>required_blocks = (    num_blocks_to_allocate    + watermark_blocks)</code></pre>
+<p>只有剩余 Block 足够时才接纳。</p>
+<p>这样可以减少：</p>
+<blockquote>
+<p><strong>Admission → 立即 Preemption → 再 Admission</strong></p>
+</blockquote>
+<p>这种资源震荡。</p>
+<h2 id="6-本章小结scheduler从batch-调度到资源调度">6. 本章小结：Scheduler：从“Batch 调度”到“资源调度”</h2>
+<p>到这里，可以把 vLLM Scheduler 的整个设计串起来。</p>
+<p>传统推理系统更像：</p>
+<pre><code>Request   ↓固定 Batch   ↓执行   ↓Batch 完成</code></pre>
+<p>而 vLLM 更接近：</p>
+<pre><code>                 Incoming Requests                        │  
+▼                  Waiting Queue                        │  
+▼                  Scheduler                        │
+┌──────────┴──────────┐             │                     │  
+▼  
+▼       Token Budget             KV Cache       计算资源约束              内存约束             │                     │
+└──────────┬──────────┘  
+▼                本轮调度结果                        │  
+▼                SchedulerOutput                        │  
+▼                   ModelRunner                        │  
+▼                     GPU</code></pre>
+<p>从一个 Request 的生命周期来看：</p>
+<pre><code>Request 到达     │  
+▼Waiting     │  
+▼Admission Control     │
+├── KV Cache 不足 ──→ Waiting     │  
+▼Running     │  
+▼Scheduler.schedule()     │
+├── 计算 remaining tokens     │
+├── 分配 Token Budget     │
+├── allocate_slots()     │
+└── 生成 SchedulerOutput     │  
+▼GPU 执行     │
+├── Prefill
+├── Chunked Prefill
+├── Decode
+└── Speculative Decode     │  
+▼num_computed_tokens 更新     │
+├── 未完成 ──────→ 下一轮 Scheduler     │
+└── 完成 ────────→ 释放 KV Cache</code></pre>
+<p>因此，本章最重要的结论可以概括为：</p>
+<blockquote>
+<p><strong>vLLM Scheduler 并不是简单地维护一个“当前 Batch”。它实际上是在每一个 iteration 中，结合 Token Budget、Request 状态和 KV Cache 可用空间，动态决定哪些 Request 可以执行，以及每个 Request 本轮可以推进多少 token。</strong></p>
+</blockquote>
+<p>而 Continuous Batching、Chunked Prefill 和 Mixed Batch，实际上都可以从这个统一的资源调度模型中自然推导出来：</p>
+<pre><code>                    Scheduler                        │  
+▼                 Token Budget                        │
+┌─────────────┼─────────────┐  
+▼  
+▼  
+▼
+Request A
+Request B
+Request C          │             │             │       256 tokens      1 token       5 tokens          │             │             │  
+▼  
+▼  
+▼       Prefill         Decode      Spec Decode          │             │             │
+└─────────────┼─────────────┘  
+▼                  Mixed Batch</code></pre>
+<p>最终形成一个非常重要的抽象：</p>
+<blockquote>
+<p><strong>LLM Serving 的 Scheduler，本质上不是在调度“Batch”，而是在动态调度一组具有不同计算需求和不同 KV Cache 状态的 Request，并通过 Token Budget 将有限的 GPU 计算能力分配给它们。</strong></p>
+</blockquote>
+<p>这也是为什么 vLLM 能够在同一轮中同时处理：</p>
+<pre><code>长 Prompt Prefill        +Chunked Prefill        +普通 Decode        +Speculative Decode        +新 Request Admission</code></pre>
+<p>而不需要为每一种 workload 设计一套完全独立的 Scheduler。</p>
+<p><strong>Take Away</strong>:</p>
+<ol type="1">
+<li><strong>Continuous Batching</strong>：Request 可以在每个 iteration 动态加入和退出。</li>
+<li><strong>Chunked Prefill</strong>：一个超长 Request 也不能无限制地独占一轮计算。</li>
+<li><strong>Token Budget</strong>：Scheduler 为每个 iteration 设置一个 token 数量上限，以控制本轮 GPU 的最大调度工作量；在此基础上，再结合 Request 的 token 推进需求和 KV Cache 可用空间，决定每个 Request 实际推进多少 token。</li>
+<li><strong>Mixed Batch</strong>：Prefill、Decode 和 Speculative Decode 可以在同一轮自然共存，因为它们最终都被统一表示成 token 推进需求。</li>
+<li><strong>Admission Control + Preemption</strong>：Token Budget 解决“算多少”，KV Cache 管理解决“能不能装下”。</li>
+</ol>
+
+
+</article>
+<div class="pnav">
+ <span><a href="03-鸟瞰 vLLM：一个请求如何穿过整个推理系统.html">← 上一篇 03</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><a href="05-KV Cache：LLM Serving 的第一号内存问题.html">下一篇 05 →</a></span>
+</div>
+</body>
+</html>

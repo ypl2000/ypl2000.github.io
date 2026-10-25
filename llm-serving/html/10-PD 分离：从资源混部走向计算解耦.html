@@ -1,0 +1,747 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10 PD 分离：从资源混部走向计算解耦</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 10 PD 分离：从资源混部走向计算解耦</div>
+<article>
+ <div class="ahead">
+  <span class="chip">10</span>
+  <h1>PD 分离：从资源混部走向计算解耦</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 11 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（39 条）</summary><ol><li><a href="#1-为什么要分离-prefill-和-decode">1. 为什么要分离 Prefill 和 Decode？</a><ol class="lv3"><li><a href="#11-两种计算阶段两种资源画像">1.1 两种计算阶段，两种资源画像</a></li><li><a href="#12-混合部署的主要代价">1.2 混合部署的主要代价</a></li><li><a href="#13-pd-分离的基本架构">1.3 PD 分离的基本架构</a></li></ol></li><li><a href="#2-一次请求如何经过-prefill-和-decode">2. 一次请求如何经过 Prefill 和 Decode？</a><ol class="lv3"><li><a href="#21-第一步router-选择-prefill-节点">2.1 第一步：Router 选择 Prefill 节点</a></li><li><a href="#22-第二步prefill-节点处理-prompt">2.2 第二步：Prefill 节点处理 Prompt</a></li><li><a href="#23-第三步kv-transfer">2.3 第三步：KV Transfer</a></li><li><a href="#24-第四步decode-节点接管请求">2.4 第四步：Decode 节点接管请求</a></li><li><a href="#25-第五步持续-decode">2.5 第五步：持续 Decode</a></li></ol></li><li><a href="#3-kv-transferpd-分离真正的难点">3. KV Transfer：PD 分离真正的难点</a><ol class="lv3"><li><a href="#31-kv-cache-到底有多大">3.1 KV Cache 到底有多大？</a></li><li><a href="#32-传输时间如何估算">3.2 传输时间如何估算？</a></li><li><a href="#33-kv-transfer-能否与计算重叠">3.3 KV Transfer 能否与计算重叠？</a></li></ol></li><li><a href="#4-vllm-中的-kv-transfer-抽象">4. vLLM 中的 KV Transfer 抽象</a><ol class="lv3"><li><a href="#41-serving-语义层kv-connector">4.1 Serving 语义层：KV Connector</a></li><li><a href="#42-kv-索引与缓存层">4.2 KV 索引与缓存层</a></li><li><a href="#43-数据传输与存储层">4.3 数据传输与存储层</a></li></ol></li><li><a href="#5-nixllmcachemooncake-等生态组件">5. NIXL、LMCache、Mooncake 等生态组件</a><ol class="lv3"><li><a href="#51-nixl">5.1 NIXL</a></li><li><a href="#52-lmcache">5.2 LMCache</a></li><li><a href="#53-mooncake">5.3 Mooncake</a></li><li><a href="#54-其他传输和存储实现">5.4 其他传输和存储实现</a></li></ol></li><li><a href="#6-pd-分离下的请求路由">6. PD 分离下的请求路由</a><ol class="lv3"><li><a href="#61-prefill-节点选择">6.1 Prefill 节点选择</a></li><li><a href="#62-decode-节点选择">6.2 Decode 节点选择</a></li></ol></li><li><a href="#7-kv-affinity路由中的状态亲和性">7. KV Affinity：路由中的状态亲和性</a></li><li><a href="#8-两个池子可以独立扩缩容">8. 两个池子可以独立扩缩容</a><ol class="lv3"><li><a href="#81-prefill-池的扩容指标">8.1 Prefill 池的扩容指标</a></li><li><a href="#82-decode-池的扩容指标">8.2 Decode 池的扩容指标</a></li></ol></li><li><a href="#9-故障恢复kv-cache-变成分布式状态">9. 故障恢复：KV Cache 变成分布式状态</a><ol class="lv3"><li><a href="#91-策略一重新-prefill">9.1 策略一：重新 Prefill</a></li><li><a href="#92-策略二从远端-kv-存储恢复">9.2 策略二：从远端 KV 存储恢复</a></li><li><a href="#93-策略三复制-kv-cache">9.3 策略三：复制 KV Cache</a></li></ol></li><li><a href="#10-pd-分离不是无条件划算">10. PD 分离不是无条件划算</a><ol class="lv3"><li><a href="#101-更适合-pd-分离的场景">10.1 更适合 PD 分离的场景</a></li><li><a href="#102-可能不适合-pd-分离的场景">10.2 可能不适合 PD 分离的场景</a></li></ol></li><li><a href="#11-从单机-kv-cache-到集群-kv-cache">11. 从单机 KV Cache 到集群 KV Cache</a></li><li><a href="#12-小结pd-分离的本质是状态转移">12. 小结：PD 分离的本质是状态转移</a></li></ol></details>
+<p>前九章主要讨论的是：</p>
+<pre><code>如何在一台机器或一组共享设备上，把请求高效地运行起来？</code></pre>
+<p>这一章进一步追问：</p>
+<pre><code>如果 Prefill 和 Decode 不再共享同一批 GPU，它们如何协作完成同一个请求？</code></pre>
+<p>这就是 PD 分离，也就是 <strong>Prefill/Decode Disaggregation</strong>。</p>
+<p>PD 分离表面上是把 GPU 分成两个池子：</p>
+<pre><code>Prefill Pool  → 负责处理输入 PromptDecode Pool   → 负责逐 Token 生成</code></pre>
+<p>但它的本质并不是简单的服务拆分，而是：</p>
+<blockquote>
+<p><strong>把一次请求的执行过程拆成两个阶段，并把阶段之间的 KV Cache 作为跨节点状态进行传递。</strong></p>
+</blockquote>
+<p>因此，PD 分离真正改变的不是某个算子，而是 Serving 系统的状态边界。</p>
+<p><strong>PD 混合 Serving</strong>：Prefill 和 Decode 运行在同一个 Serving 实例或资源池中：</p>
+<pre class="wide"><code>Request   │  
+▼┌──────────────────────────────┐│       Serving Instance       ││                              ││   Prefill ──→ Decode         ││      │           │           ││
+└── KV Cache ──────────┘││                              ││   共享 GPU / 调度 / KV Cache 
+│└──────────────────────────────┘</code></pre>
+<p>Prefill 与 Decode 共享计算资源和调度体系，KV Cache 也主要作为实例内部状态进行管理。</p>
+<p><strong>PD 分离 Serving</strong>： Prefill 和 Decode 被拆分到相对独立的资源池：</p>
+<pre><code>                 Request                    │  
+▼
+┌───────────┐              │  Router   │
+└─────┬─────┘                    │
+┌─────┴─────┐  
+▼  
+▼
+┌────────────┐
+┌────────────┐      │  Prefill   │ │   Decode   │      │    Pool    │ │    Pool    │
+└─────┬──────┘
+└──────▲─────┘            │                │
+└─ KV Transfer ──┘</code></pre>
+<p>此时，系统发生了三个重要变化：</p>
+<ul>
+<li><strong>资源边界变化</strong>：Prefill 与 Decode 不再共享同一个资源池，可以独立配置和扩缩容。</li>
+<li><strong>调度边界变化</strong>：Prefill 和 Decode 可以采用不同的调度策略，分别针对各自的计算特征进行优化。</li>
+<li><strong>状态边界变化</strong>：KV Cache 不再只是某个 Serving 实例内部的本地状态，而成为需要在 Prefill 与 Decode 之间传递、定位、管理的中间状态。</li>
+</ul>
+<p>因此，<strong>PD 分离的核心是把原本耦合在一起的 Prefill 和 Decode 解耦成两个可以独立管理的计算资源域，并通过 KV Cache Transfer 将两个阶段重新连接起来。</strong></p>
+<p>当然，在讨论怎么PD分离之前，我们要先搞清楚为什么要PD分离。</p>
+<h2 id="1-为什么要分离-prefill-和-decode">1. 为什么要分离 Prefill 和 Decode？</h2>
+<h3 id="11-两种计算阶段两种资源画像">1.1 两种计算阶段，两种资源画像</h3>
+<p>Prefill 和 Decode 使用的是同一套模型，但它们的计算行为并不相同。</p>
+<p>Prefill 需要一次性处理用户输入的全部 Prompt token：</p>
+<pre><code>Prompt：[t₁, t₂, t₃, ..., tₙ]一次前向：    同时处理大量输入 token    生成对应的 KV Cache</code></pre>
+<p>它通常具有以下特点：</p>
+<ul>
+<li>计算量大；</li>
+<li>矩阵乘法规模较大；</li>
+<li>更容易表现为计算密集型；</li>
+<li>长 Prompt 会显著增加处理时间；</li>
+<li>目标通常是降低 TTFT，即首 Token 延迟。</li>
+</ul>
+<p>Decode 则是在已有 KV Cache 的基础上，每轮生成一个或少量 token：</p>
+<pre><code>已有 KV Cache    +当前生成 token  
+↓生成下一个 token</code></pre>
+<p>它通常具有以下特点：</p>
+<ul>
+<li>每轮计算规模较小；</li>
+<li>需要反复读取模型权重和 KV Cache；</li>
+<li>更容易受到内存带宽、访存延迟和 batch 组织方式影响；</li>
+<li>生成阶段持续时间长；</li>
+<li>目标通常是稳定 TPOT，即每个输出 Token 的延迟。</li>
+</ul>
+<p>同一批 GPU 同时承担两种 workload 时，资源画像会不断变化：</p>
+<pre><code>时间 →┌──────────────┬──┬──┬──┬──────────────┬──┬──┐│   Prefill    │D │D │D │   Prefill    │D │D 
+│└──────────────┴──┴──┴──┴──────────────┴──┴──┘   计算密集        访存敏感       计算密集       访存敏感</code></pre>
+<p>混合部署下，一个长 Prompt 可能占用大量计算资源，使正在 Decode 的请求被延迟；而 Decode 请求又会持续占用 KV Cache 和显存，限制 Prefill 的 batch 组织。</p>
+<p>因此，混合部署的主要问题并不是“Prefill 和 Decode 不能同时运行”，而是：</p>
+<blockquote>
+<p><strong>两种阶段的资源需求不同，却被迫共享相同的调度和硬件资源。</strong></p>
+</blockquote>
+<h3 id="12-混合部署的主要代价">1.2 混合部署的主要代价</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">问题</th>
+<th style="text-align: left;">直接后果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Prefill 计算量大</td>
+<td style="text-align: left;">可能抢占 Decode 的执行机会</td>
+</tr>
+<tr>
+<td style="text-align: left;">Decode 持续占用 KV Cache</td>
+<td style="text-align: left;">限制 Prefill 的 batch 和并发</td>
+</tr>
+<tr>
+<td style="text-align: left;">长 Prompt 进入队列</td>
+<td style="text-align: left;">TTFT 和 TPOT 同时抖动</td>
+</tr>
+<tr>
+<td style="text-align: left;">两类 workload 共用硬件</td>
+<td style="text-align: left;">难以针对性选择设备和并行度</td>
+</tr>
+<tr>
+<td style="text-align: left;">负载比例动态变化</td>
+<td style="text-align: left;">资源利用率容易失衡</td>
+</tr>
+<tr>
+<td style="text-align: left;">扩容只能整体扩容</td>
+<td style="text-align: left;">Prefill 或 Decode 其中一侧可能出现资源浪费</td>
+</tr>
+</tbody>
+</table>
+<p>例如，某一时刻请求主要是长文档输入，Prefill 池成为瓶颈；过一段时间后，输入变少，但大量请求进入长文本生成阶段，Decode 池又成为瓶颈。</p>
+<p>如果 Prefill 和 Decode 共用同一批 GPU，只能整体增加机器，无法针对真正的瓶颈进行扩展。</p>
+<h3 id="13-pd-分离的基本架构">1.3 PD 分离的基本架构</h3>
+<p>PD 分离将两类 workload 放到不同的资源池中：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928095451885。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928095451885.png</code></figcaption></figure></p>
+<p>两类节点可以采用不同的资源配置：</p>
+<pre class="wide"><code>Prefill Pool：    更关注计算吞吐    适合较高计算能力    可以采用不同的 Tensor Parallel 配置    重点优化长 Prompt 处理Decode Pool：    更关注内存带宽和稳定吞吐    需要容纳更多并发请求的 KV Cache    重点优化持续生成和 TPOT</code></pre>
+<p>PD 分离带来的核心收益包括：</p>
+<ul>
+<li>Prefill 和 Decode 可以独立扩缩容；</li>
+<li>长 Prompt 不容易直接阻塞 Decode；</li>
+<li>两个池子可以使用不同的硬件配置；</li>
+<li>可以分别优化 TTFT 和 TPOT；</li>
+<li>Decode 节点可以维持更稳定的 Continuous Batching；</li>
+<li>可以根据实际流量比例调整 Prefill/Decode 资源配比。</li>
+</ul>
+<p>但它并不是无条件的性能升级。PD 分离会引入新的成本：</p>
+<ul>
+<li>KV Cache 必须跨节点传输；</li>
+<li>请求路由变得更加复杂；</li>
+<li>节点间网络成为新的瓶颈；</li>
+<li>KV Cache 的状态需要被追踪和恢复；</li>
+<li>故障处理从单进程问题变成分布式问题。</li>
+</ul>
+<p>所以更准确的判断是：</p>
+<blockquote>
+<p><strong>PD 分离用跨节点协调和 KV Transfer 的成本，换取 Prefill 与 Decode 的资源独立性。</strong></p>
+</blockquote>
+<h2 id="2-一次请求如何经过-prefill-和-decode">2. 一次请求如何经过 Prefill 和 Decode？</h2>
+<p>理解 PD 分离最直接的方式，是跟踪一个请求的完整生命周期。</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928095411551。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928095411551.png</code></figcaption></figure></p>
+<p>一次请求大致经历以下阶段。</p>
+<h3 id="21-第一步router-选择-prefill-节点">2.1 第一步：Router 选择 Prefill 节点</h3>
+<p>Router 根据输入长度、Prefill 节点负载和可能的 Prefix Cache 命中情况，选择一个 Prefill 节点。</p>
+<p>此时需要考虑的并不只是请求数，还包括：</p>
+<ul>
+<li>Prompt token 数量；</li>
+<li>当前 Prefill 队列长度；</li>
+<li>节点剩余计算容量；</li>
+<li>已有 Prefix Cache 是否可复用；</li>
+<li>目标节点的设备和并行配置。</li>
+</ul>
+<h3 id="22-第二步prefill-节点处理-prompt">2.2 第二步：Prefill 节点处理 Prompt</h3>
+<p>Prefill 节点执行模型前向，处理输入 Prompt，并生成各层的 K/V 张量。</p>
+<p>这些 KV 通常按照 vLLM 的 block 组织方式写入 KV Cache：</p>
+<pre><code>Prompt token  
+↓Attention 层计算  
+↓K/V 张量  
+↓KV Cache Block</code></pre>
+<h3 id="23-第三步kv-transfer">2.3 第三步：KV Transfer</h3>
+<p>Prefill 节点将请求需要的 KV Cache 传输给目标 Decode 节点。</p>
+<p>传输内容可能包括：</p>
+<ul>
+<li>KV Cache Tensor；</li>
+<li>block table；</li>
+<li>token 数量；</li>
+<li>layer 信息；</li>
+<li>数据类型和布局；</li>
+<li>请求标识；</li>
+<li>传输状态和元数据。</li>
+</ul>
+<h3 id="24-第四步decode-节点接管请求">2.4 第四步：Decode 节点接管请求</h3>
+<p>Decode 节点收到 KV Cache 后，将它放入本地 Cache，并建立请求与 KV block 的映射。</p>
+<p>之后，Decode 节点不再重复处理原始 Prompt，而是直接基于已有 KV Cache 生成后续 token。</p>
+<h3 id="25-第五步持续-decode">2.5 第五步：持续 Decode</h3>
+<p>后续生成通常持续在 Decode 池内完成：</p>
+<pre><code>读取已有 KV Cache  
+↓处理当前 token  
+↓生成下一个 token  
+↓追加新的 KV Cache</code></pre>
+<p>这时请求已经从 Prefill 节点迁移到了 Decode 节点。</p>
+<p>因此，PD 分离不是：</p>
+<pre><code>Prefill 服务返回结果Decode 服务重新开始执行</code></pre>
+<p>而是：</p>
+<pre><code>Prefill 服务计算出中间状态Decode 服务接管这个中间状态</code></pre>
+<p>这个中间状态就是 KV Cache。</p>
+<h2 id="3-kv-transferpd-分离真正的难点">3. KV Transfer：PD 分离真正的难点</h2>
+<p>把 GPU 分成两个池子很容易，真正困难的是中间这条连接线：</p>
+<pre><code>Prefill Node    ──────────────── KV Cache ────────────────&gt;Decode Node</code></pre>
+<p>如果 KV 传输速度不够快，Prefill 阶段节省下来的计算时间，可能会被网络传输和同步等待重新吃掉。</p>
+<p>因此：</p>
+<blockquote>
+<p><strong>PD 分离的核心不是“有没有两个池子”，而是 KV 能否高效、正确、及时地从一个池子交给另一个池子。</strong></p>
+</blockquote>
+<h3 id="31-kv-cache-到底有多大">3.1 KV Cache 到底有多大？</h3>
+<p>KV Cache 的大小取决于模型结构和数据类型。一个简化的估算公式是：</p>
+<pre><code>KV bytes/token≈层数× 2（K 和 V）× KV heads× head_dim× 每元素字节数</code></pre>
+<p>整个请求的 KV 大小大致为：</p>
+<pre><code>KV 总大小≈Prompt token 数× KV bytes/token</code></pre>
+<p>影响 KV 大小的主要因素包括：</p>
+<ul>
+<li>Transformer 层数；</li>
+<li>KV head 数；</li>
+<li>head dimension；</li>
+<li>KV Cache 数据类型；</li>
+<li>GQA / MQA 配置；</li>
+<li>block 对齐和元数据；</li>
+<li>是否使用压缩或量化 KV Cache。</li>
+</ul>
+<p>沿用前文的示例配置，假设：</p>
+<pre><code>每个 token 的 KV Cache ≈ 320 KBPrompt 长度 = 2050 token</code></pre>
+<p>那么：</p>
+<pre><code>2050 × 320 KB≈ 656,000 KB≈ 641 MiB</code></pre>
+<p>因此，这个请求需要从 Prefill 节点搬运的 KV 数据大约是 <strong>641 MiB</strong>。</p>
+<h3 id="32-传输时间如何估算">3.2 传输时间如何估算？</h3>
+<p>理想情况下：</p>
+<pre><code>传输时间≈KV 数据量 / 实际有效带宽+端到端固定延迟</code></pre>
+<p>如果 KV 大小为 641 MiB，实际有效带宽为 50 GB/s，则仅从带宽下限估算：</p>
+<pre><code>641 MiB / 50 GB/s≈ 12.8 ms</code></pre>
+<p>但这只是理想值。真实端到端延迟还会受到以下因素影响：</p>
+<ul>
+<li>KV block 的切分方式；</li>
+<li>元数据交换；</li>
+<li>GPU 与 NIC 的拓扑；</li>
+<li>PCIe 或 NVLink 路径；</li>
+<li>RDMA 协议开销；</li>
+<li>DMA 调度；</li>
+<li>接收端内存分配；</li>
+<li>Tensor 布局转换；</li>
+<li>传输完成后的同步；</li>
+<li>多请求并发传输造成的带宽竞争。</li>
+</ul>
+<p>因此，12.8 ms 是理想带宽下限，不代表请求从 Prefill 到 Decode 的真实交接延迟。PD 分离需要优化的是完整链路：</p>
+<pre><code>KV 生成  + 元数据准备  + 网络传输  + 目标端写入  + KV 状态确认  + Decode 开始执行</code></pre>
+<h3 id="33-kv-transfer-能否与计算重叠">3.3 KV Transfer 能否与计算重叠？</h3>
+<p>最理想的情况不是：</p>
+<pre><code>先完成全部 KV 传输    ↓再开始 Decode</code></pre>
+<p>而是让数据传输和模型执行尽可能形成流水：</p>
+<pre><code>Layer 0 KV 到达 → 可以开始处理 Layer 0Layer 1 KV 到达 → 可以开始处理 Layer 1Layer 2 KV 到达 → 可以开始处理 Layer 2</code></pre>
+<p>示意如下：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928095356802。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928095356802.png</code></figcaption></figure></p>
+<p>一些 KV Transfer 实现支持按层、按阶段或按块等待，使传输与模型前向存在重叠空间。</p>
+<p>不过，需要注意：</p>
+<blockquote>
+<p>是否能够真正实现按层流水，取决于 KV Connector、Worker、Attention Backend、Cache 布局和底层传输实现之间的协作。</p>
+</blockquote>
+<p>如果传输必须等整个请求的 KV 全部到齐后才能开始 Decode，那么流程就会退化为：</p>
+<pre><code>Prefill    ↓整请求 KV 传输    ↓Decode</code></pre>
+<p>此时传输和计算完全串行，PD 分离的收益会显著下降。</p>
+<h2 id="4-vllm-中的-kv-transfer-抽象">4. vLLM 中的 KV Transfer 抽象</h2>
+<p>从功能职责上，可以把 KV Transfer 理解为三类组件：</p>
+<pre><code>Serving 语义层    ↓KV 索引与缓存层    ↓数据传输与存储层</code></pre>
+<p>不同实现的模块边界并不完全相同，但它们解决的问题大致可以归入这三类。</p>
+<h3 id="41-serving-语义层kv-connector">4.1 Serving 语义层：KV Connector</h3>
+<p>KV Connector 面向 vLLM 的调度和执行流程，负责把“远端 KV Cache”纳入请求生命周期。</p>
+<p>它需要解决的问题包括：</p>
+<ul>
+<li>远端是否已经存在某个 Prompt 的 KV；</li>
+<li>当前请求有多少 token 可以复用；</li>
+<li>Scheduler 是否应该为这些 token 分配计算资源；</li>
+<li>Worker 何时开始加载 KV；</li>
+<li>某一层的 KV 是否已经可用；</li>
+<li>请求结束后如何清理相关状态；</li>
+<li>传输失败后是否回退到重新 Prefill。</li>
+</ul>
+<p>从职责上可以分为两组。</p>
+<h4 id="411-scheduler-侧">4.1.1 Scheduler 侧</h4>
+<p>Scheduler 不应该直接搬运 Tensor，而是负责做决策：</p>
+<pre><code>是否存在远端 KV？可以复用多少 token？需要为哪些 token 分配本地 block？当前请求是否可以进入下一阶段？</code></pre>
+<p>典型接口可能包括：</p>
+<pre><code>get_num_new_matched_tokens()update_state_after_alloc()request_finished()</code></pre>
+<h4 id="412-worker-侧">4.1.2 Worker 侧</h4>
+<p>Worker 负责真正的数据面操作：</p>
+<pre><code>开始加载 KV等待某一层 KV 到达保存某一层 KV将 KV 写入本地 Cache</code></pre>
+<p>典型接口可能包括：</p>
+<pre><code>start_load_kv()wait_for_layer_load()save_kv_layer()</code></pre>
+<p>因此，KV Connector 体现了前面章节反复出现的控制面与数据面分离：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928095342829。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928095342829.png</code></figcaption></figure></p>
+<p>Scheduler 只决定：</p>
+<pre><code>要不要使用远端 KV要使用多少远端 KV什么时候允许请求继续执行</code></pre>
+<p>Worker 才真正执行：</p>
+<pre><code>从哪里读取 KV把 KV 搬到哪里如何写入本地 Cache什么时候确认完成</code></pre>
+<h3 id="42-kv-索引与缓存层">4.2 KV 索引与缓存层</h3>
+<p>跨节点传输并不意味着每次都要重新搬运全部 KV。</p>
+<p>如果多个请求拥有相同前缀，系统可以尝试复用已有 KV：</p>
+<pre><code>请求 A：[系统提示词][长文档 A]请求 B：[系统提示词][长文档 B]</code></pre>
+<p>如果前缀部分相同：</p>
+<pre><code>[系统提示词]</code></pre>
+<p>那么请求 B 可以复用请求 A 已经生成的部分 KV。</p>
+<p>这需要一个 KV 索引与缓存层，负责维护：</p>
+<pre><code>Token 前缀 / KV Block  
+↓远端位置、状态、引用关系和生命周期</code></pre>
+<p>它可能需要支持：</p>
+<ul>
+<li>KV 查询；</li>
+<li>Prefix Cache 命中；</li>
+<li>block 元数据管理；</li>
+<li>引用计数；</li>
+<li>插入和驱逐；</li>
+<li>过期和失效；</li>
+<li>远端存储位置记录；</li>
+<li>传输状态追踪。</li>
+</ul>
+<p>这层的关键作用是：</p>
+<blockquote>
+<p><strong>尽量减少重复计算和重复搬运。</strong></p>
+</blockquote>
+<p>但它也会带来新的问题：</p>
+<ul>
+<li>远端 KV 是否仍然有效；</li>
+<li>不同模型版本能否复用；</li>
+<li>不同数据类型能否复用；</li>
+<li>不同并行配置下布局是否兼容；</li>
+<li>KV 被驱逐后如何通知使用方；</li>
+<li>多个请求同时写入同一个前缀时如何处理。</li>
+</ul>
+<h3 id="43-数据传输与存储层">4.3 数据传输与存储层</h3>
+<p>最底层是数据传输与存储机制，负责真正搬运 KV Tensor。</p>
+<p>可能涉及的路径包括：</p>
+<pre><code>GPU → GPUGPU → CPUCPU → GPUGPU → NIC → 远端 GPUGPU → 分布式内存池GPU → 共享存储 → 远端 GPU</code></pre>
+<p>常见优化方向包括：</p>
+<ul>
+<li>RDMA；</li>
+<li>GPUDirect RDMA；</li>
+<li>GPU IPC；</li>
+<li>NVLink；</li>
+<li>PCIe 拓扑优化；</li>
+<li>零拷贝或少拷贝；</li>
+<li>异步传输；</li>
+<li>多流并行；</li>
+<li>分块流水；</li>
+<li>传输与计算重叠。</li>
+</ul>
+<p>可以把这三类职责总结为：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层次</th>
+<th style="text-align: left;">主要问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Serving 语义层</td>
+<td style="text-align: left;">请求是否需要远端 KV，何时开始和结束</td>
+</tr>
+<tr>
+<td style="text-align: left;">KV 索引与缓存层</td>
+<td style="text-align: left;">哪些 KV 已经存在，能复用多少</td>
+</tr>
+<tr>
+<td style="text-align: left;">传输与存储层</td>
+<td style="text-align: left;">KV Tensor 实际如何搬运和保存</td>
+</tr>
+</tbody>
+</table>
+<p>需要特别注意：</p>
+<blockquote>
+<p>这三类职责是功能上的划分，不一定对应所有实现中固定的三个独立模块。</p>
+</blockquote>
+<h2 id="5-nixllmcachemooncake-等生态组件">5. NIXL、LMCache、Mooncake 等生态组件</h2>
+<p>PD 分离涉及的组件很多，但它们并不处在完全相同的抽象层。</p>
+<h3 id="51-nixl">5.1 NIXL</h3>
+<p>NIXL 可以理解为面向 AI 推理场景的数据传输抽象，重点解决：</p>
+<ul>
+<li>GPU、CPU 和内存之间的数据搬运；</li>
+<li>节点间高性能传输；</li>
+<li>异步传输；</li>
+<li>对不同硬件路径和网络能力进行抽象。</li>
+</ul>
+<p>在 NVIDIA GPU 环境中，它可以结合 GPUDirect RDMA 等能力，减少 CPU 参与和不必要的数据拷贝。</p>
+<p>更准确地说，NIXL 主要解决的是：</p>
+<pre><code>数据如何高效地从这里搬到那里</code></pre>
+<p>而不是单独负责完整的请求路由或 KV 生命周期管理。</p>
+<h3 id="52-lmcache">5.2 LMCache</h3>
+<p>LMCache 更偏向 KV Cache 的缓存、复用和存储管理，关注的问题包括：</p>
+<ul>
+<li>KV 是否已经存在；</li>
+<li>KV 是否可以跨请求复用；</li>
+<li>KV 应该放在 GPU、CPU 还是远端存储；</li>
+<li>KV 如何在不同层级之间迁移；</li>
+<li>KV 如何被淘汰和恢复。</li>
+</ul>
+<p>它解决的不只是：</p>
+<pre><code>把 KV 发给另一个节点</code></pre>
+<p>还包括：</p>
+<pre><code>KV 放在哪里？如何查找？如何复用？什么时候淘汰？</code></pre>
+<h3 id="53-mooncake">5.3 Mooncake</h3>
+<p>Mooncake 面向大规模推理服务场景，通常同时关注：</p>
+<ul>
+<li>KV Cache 的分布式管理；</li>
+<li>高性能数据传输；</li>
+<li>KV Cache 的调度；</li>
+<li>多节点资源协作；</li>
+<li>Prefill 与 Decode 的协同。</li>
+</ul>
+<p>它更接近一套面向大规模 Serving 的系统化方案，而不仅仅是单一传输 API。</p>
+<h3 id="54-其他传输和存储实现">5.4 其他传输和存储实现</h3>
+<p>不同生态中还可能出现面向特定场景的组件，例如：</p>
+<ul>
+<li>KV 流式传输实现；</li>
+<li>基于 RDMA 的传输后端；</li>
+<li>分布式内存池；</li>
+<li>共享文件系统；</li>
+<li>面向元数据管理的存储系统；</li>
+<li>GPU 到 GPU 的专用互联方案。</li>
+</ul>
+<p>因此，不应把 NIXL、LMCache、Mooncake 简单看成完全等价的“KV Pipe”。更准确的关系是：</p>
+<pre><code>vLLM KV Transfer 抽象  
+↓可组合不同的：    传输实现    KV 缓存    分布式存储    内存池    调度与路由系统</code></pre>
+<p>它们可能在某些部署中组合使用，也可能由一个系统同时覆盖多个层次。</p>
+<h2 id="6-pd-分离下的请求路由">6. PD 分离下的请求路由</h2>
+<p>PD 分离之后，Router 不再只是一个普通的轮询负载均衡器。</p>
+<p>它至少需要同时观察两类资源：</p>
+<pre><code>Prefill 资源：    计算队列、Prompt 长度、Prefill 吞吐Decode 资源：    活跃请求数、KV Cache 容量、Decode Batch、TPOT</code></pre>
+<p>一个请求的路由过程可以抽象为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928095311968。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928095311968.png</code></figcaption></figure></p>
+<h3 id="61-prefill-节点选择">6.1 Prefill 节点选择</h3>
+<p>可以考虑：</p>
+<ul>
+<li>Prompt 长度；</li>
+<li>当前排队请求的总 token 数；</li>
+<li>Prefill batch 的预计完成时间；</li>
+<li>当前设备利用率；</li>
+<li>Prefix Cache 是否命中；</li>
+<li>节点间网络位置。</li>
+</ul>
+<h3 id="62-decode-节点选择">6.2 Decode 节点选择</h3>
+<p>可以考虑：</p>
+<ul>
+<li>当前活跃请求数；</li>
+<li>KV Cache 使用率；</li>
+<li>剩余 KV 容量；</li>
+<li>当前 Decode batch 大小；</li>
+<li>预计 TPOT；</li>
+<li>到 Prefill 节点的网络距离；</li>
+<li>是否已有相同前缀的 KV。</li>
+</ul>
+<p>因此，路由目标不是简单的“请求数平均”，而是：</p>
+<pre><code>让 Prompt 计算排队可控让 KV 传输代价可控让 Decode Batch 稳定 让 KV Cache 容量不倾斜</code></pre>
+<h2 id="7-kv-affinity路由中的状态亲和性">7. KV Affinity：路由中的状态亲和性</h2>
+<p>如果同一前缀的请求尽量被路由到相同的 Decode 节点，就有机会复用该节点上已有的 Prefix Cache。</p>
+<p>例如：</p>
+<pre><code>请求 A → Decode Node 0请求 B → Decode Node 0</code></pre>
+<p>如果请求 A 和请求 B 共享长前缀，那么请求 B 可能直接复用 Node 0 上的部分 KV。</p>
+<p>这就是 KV Affinity。</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928095301197。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928095301197.png</code></figcaption></figure></p>
+<p>但 KV Affinity 不能无限强化，否则会产生新的热点：</p>
+<pre><code>所有相同前缀请求  
+↓集中到同一个 Decode 节点  
+↓Prefix Cache 命中率提高但节点负载和 KV 容量失衡</code></pre>
+<p>因此，实际路由需要在几件事之间做平衡：</p>
+<ul>
+<li>Prefix Cache 命中率；</li>
+<li>Decode 节点负载；</li>
+<li>KV Cache 容量；</li>
+<li>网络传输代价；</li>
+<li>请求的延迟目标。</li>
+</ul>
+<p>可以将路由目标写成：</p>
+<pre><code>路由代价=Prefill 排队时间+ KV 传输时间+ Decode 排队时间+ KV 容量压力- Prefix Cache 命中收益</code></pre>
+<p>这已经不是传统的无状态服务路由，而是带有执行状态和缓存状态感知的路由。</p>
+<h2 id="8-两个池子可以独立扩缩容">8. 两个池子可以独立扩缩容</h2>
+<p>PD 分离最直接的收益之一，是 Prefill 和 Decode 可以独立扩缩容。</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928095217762。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928095217762.png</code></figcaption></figure></p>
+<p>可以根据不同指标进行扩容。</p>
+<h3 id="81-prefill-池的扩容指标">8.1 Prefill 池的扩容指标</h3>
+<ul>
+<li>输入 token 速率；</li>
+<li>Prefill 队列长度；</li>
+<li>Prompt 平均长度；</li>
+<li>TTFT；</li>
+<li>Prefill GPU 利用率；</li>
+<li>Prefill 阶段的排队时间。</li>
+</ul>
+<h3 id="82-decode-池的扩容指标">8.2 Decode 池的扩容指标</h3>
+<ul>
+<li>活跃生成请求数；</li>
+<li>输出 token 速率；</li>
+<li>TPOT；</li>
+<li>Decode batch 大小；</li>
+<li>KV Cache 使用率；</li>
+<li>每个节点可容纳的最大请求数。</li>
+</ul>
+<p>例如：</p>
+<pre><code>长文档请求增加    → 优先扩容 Prefill Pool对话生成请求增加    → 优先扩容 Decode Pool输出长度普遍变长    → Decode Pool 的压力增加输入长度普遍变长    → Prefill Pool 的压力增加</code></pre>
+<p>但独立扩缩容也会带来资源配比问题。</p>
+<p>如果 Prefill 节点过多而 Decode 节点不足：</p>
+<pre><code>Prompt 很快处理完但大量 KV 堵在传输和 Decode 阶段</code></pre>
+<p>如果 Decode 节点过多而 Prefill 节点不足：</p>
+<pre><code>Decode 资源空闲但请求迟迟无法完成 Prefill</code></pre>
+<p>因此，扩缩容系统需要同时观察两个池子的端到端吞吐，而不能只看单侧 GPU 利用率。</p>
+<h2 id="9-故障恢复kv-cache-变成分布式状态">9. 故障恢复：KV Cache 变成分布式状态</h2>
+<p>在单机部署中，一个进程失效通常意味着本地请求和 KV Cache 一起丢失。</p>
+<p>在 PD 分离架构中，状态分布在多个节点之间：</p>
+<pre><code>请求元数据  
+↓Router / EnginePrompt 计算状态  
+↓Prefill NodeKV Cache  
+↓Decode Node / KV Storage输出生成状态  
+↓Decode Node</code></pre>
+<p>因此，Decode 节点宕机时，系统需要处理：</p>
+<pre><code>Decode 节点故障  
+↓本地 KV Cache 丢失  
+↓请求无法从原位置继续生成  
+↓重新选择 Decode 节点  
+↓重新 Prefill 或恢复远端 KV</code></pre>
+<h3 id="91-策略一重新-prefill">9.1 策略一：重新 Prefill</h3>
+<p>最简单的方式是重新处理原始 Prompt。</p>
+<pre><code>原始请求仍然保留  
+↓重新选择 Prefill 节点  
+↓重新计算 KV Cache  
+↓发送给新的 Decode 节点</code></pre>
+<p>优点：</p>
+<ul>
+<li>实现简单；</li>
+<li>不需要额外的 KV 持久化；</li>
+<li>状态一致性问题较少。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>长 Prompt 重新计算成本高；</li>
+<li>恢复期间 TTFT 增加；</li>
+<li>大量请求同时恢复时可能形成流量尖峰。</li>
+</ul>
+<h3 id="92-策略二从远端-kv-存储恢复">9.2 策略二：从远端 KV 存储恢复</h3>
+<p>如果 KV 已经写入远端缓存或分布式存储，可以直接恢复：</p>
+<pre><code>新 Decode 节点  
+↓查询远端 KV  
+↓加载对应 block  
+↓继续 Decode</code></pre>
+<p>优点：</p>
+<ul>
+<li>避免重复 Prefill；</li>
+<li>适合长上下文和高价值请求；</li>
+<li>恢复时间更稳定。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>需要维护远端 KV；</li>
+<li>增加存储和网络成本；</li>
+<li>需要处理版本、布局、数据类型和有效期；</li>
+<li>远端存储也可能成为新的故障点。</li>
+</ul>
+<h3 id="93-策略三复制-kv-cache">9.3 策略三：复制 KV Cache</h3>
+<p>可以在多个 Decode 节点或远端存储中保留副本。</p>
+<p>优点：</p>
+<ul>
+<li>故障恢复速度快；</li>
+<li>降低单节点故障影响；</li>
+<li>可以减少重新 Prefill 的概率。</li>
+</ul>
+<p>缺点：</p>
+<ul>
+<li>增加网络流量；</li>
+<li>增加显存或存储开销；</li>
+<li>KV 写入路径更复杂；</li>
+<li>需要处理副本淘汰和一致性。</li>
+</ul>
+<p>KV Cache 与数据库数据还有一个重要区别：</p>
+<blockquote>
+<p><strong>KV Cache 通常是可重建状态，而不是必须永久保存的业务事实。</strong></p>
+</blockquote>
+<p>因此，很多系统不会追求像数据库那样的强一致持久化，而是在以下目标之间进行权衡：</p>
+<pre><code>恢复速度可靠性网络成本存储成本重新计算成本</code></pre>
+<h2 id="10-pd-分离不是无条件划算">10. PD 分离不是无条件划算</h2>
+<p>PD 分离的收益取决于业务流量、模型结构和网络条件。</p>
+<p>可以将它简化为：</p>
+<pre><code>PD 分离收益≈避免的 Prefill / Decode 干扰+ 独立扩缩容收益+ 硬件配置收益- KV 传输成本- 路由与协调成本- 故障恢复成本</code></pre>
+<h3 id="101-更适合-pd-分离的场景">10.1 更适合 PD 分离的场景</h3>
+<ul>
+<li>Prompt 较长；</li>
+<li>Prefill 和 Decode 的负载比例变化明显；</li>
+<li>Decode 请求持续时间长；</li>
+<li>对 TPOT 稳定性要求高；</li>
+<li>Prefill 和 Decode 需要不同的硬件配置；</li>
+<li>节点间具备高速互联；</li>
+<li>KV Cache 复用率较高；</li>
+<li>Prefill 和 Decode 可以分别扩缩容。</li>
+</ul>
+<h3 id="102-可能不适合-pd-分离的场景">10.2 可能不适合 PD 分离的场景</h3>
+<ul>
+<li>请求很短；</li>
+<li>并发量很低；</li>
+<li>节点间网络带宽有限；</li>
+<li>KV Cache 传输无法与计算重叠；</li>
+<li>Prefill 和 Decode 的资源需求差异不明显；</li>
+<li>路由和运维复杂度超过了性能收益。</li>
+</ul>
+<p>可以用一个简单的判断标准：</p>
+<pre><code>如果：KV 传输时间 + 协调时间    &lt;混合部署中的排队与调度干扰那么 PD 分离更可能有收益。</code></pre>
+<p>但还要分别观察两个指标：</p>
+<ul>
+<li><strong>TTFT</strong>：Time To First Token，首 Token 延迟；</li>
+<li><strong>TPOT</strong>：Time Per Output Token，每个输出 Token 的延迟。</li>
+</ul>
+<p>PD 分离通常希望：</p>
+<pre><code>Prefill Pool → 优化 TTFTDecode Pool  → 优化 TPOT</code></pre>
+<p>然而，KV Transfer 本身会增加首 Token 前的等待时间。因此，不能只看 Prefill 节点的计算时间，也不能只看 Decode 节点的吞吐，必须观察完整端到端链路：</p>
+<pre><code>请求进入  → Prefill 排队  → Prompt 计算  → KV 传输  → Decode 排队  → 首 Token 返回</code></pre>
+<h2 id="11-从单机-kv-cache-到集群-kv-cache">11. 从单机 KV Cache 到集群 KV Cache</h2>
+<p>前面几章里，KV Cache 主要是单机内部的执行状态：</p>
+<pre><code>请求  ↓Scheduler  ↓KV Cache Manager  ↓本地 GPU Cache</code></pre>
+<p>到了 PD 分离之后，KV Cache 的关系变成：</p>
+<pre><code>请求  ↓Router  ↓Prefill 节点  ↓KV Transfer  ↓Decode 节点  ↓本地或远端 KV Cache</code></pre>
+<p>KV Cache 现在需要具备更多属性：</p>
+<ul>
+<li>可定位；</li>
+<li>可传输；</li>
+<li>可查询；</li>
+<li>可复用；</li>
+<li>可迁移；</li>
+<li>可淘汰；</li>
+<li>可恢复；</li>
+<li>可监控。</li>
+</ul>
+<p>这意味着 KV Cache 已经不再只是“显存中的一块 Tensor”，而是集群中的一种可管理资源。</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928095109883。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928095109883.png</code></figcaption></figure></p>
+<p>不同层级可以承担不同目标：</p>
+<pre><code>GPU HBM：    最低访问延迟，容量有限CPU Memory：    容量更大，访问延迟更高远端 GPU / 内存池：    支持跨节点复用，需要网络传输共享存储：    容量大，适合恢复和长期缓存，但延迟最高</code></pre>
+<p>这也使得未来的 Serving 系统更像一个“分层 KV Cache 系统”：</p>
+<pre><code>热 KV：    当前 Decode 请求正在使用温 KV：    近期可能复用，放在本地或邻近节点冷 KV：    长时间未访问，放到远端存储失效 KV：    被淘汰或等待回收</code></pre>
+<h2 id="12-小结pd-分离的本质是状态转移">12. 小结：PD 分离的本质是状态转移</h2>
+<p>PD 分离不是简单地把 GPU 分成两组。</p>
+<p>它真正做的是：</p>
+<pre><code>把请求执行拆成 Prefill 和 Decode 两个阶段  
+↓让两个阶段使用不同的资源池  
+↓通过 KV Transfer 传递中间状态  
+↓由 Router 和 KV 管理系统协调整个生命周期</code></pre>
+<p>本章的核心结论可以概括为三句话。</p>
+<p>第一：</p>
+<blockquote>
+<p><strong>Prefill 和 Decode 的资源需求不同，混合部署会让两者互相干扰。</strong></p>
+</blockquote>
+<p>第二：</p>
+<blockquote>
+<p><strong>PD 分离的真正难点不在“分两个池”，而在 KV Cache 的跨节点传输、查询、复用和恢复。</strong></p>
+</blockquote>
+<p>第三：</p>
+<blockquote>
+<p><strong>当 KV Cache 从本地状态变成分布式状态后，Serving 系统就从单机调度问题演进成了集群状态管理问题。</strong></p>
+</blockquote>
+<p>完整的架构演进可以这样概括：</p>
+<pre><code>模型适配  
+↓硬件解耦  
+↓单机调度  
+↓本地 KV Cache 管理  
+↓Prefill / Decode 分离  
+↓跨节点 KV Transfer  
+↓集群级路由、缓存、扩缩容与故障恢复</code></pre>
+<p>因此，PD 分离真正带来的变化是：</p>
+<blockquote>
+<p><strong>让 Prefill 和 Decode 各自更接近最优资源配置，同时要求系统具备管理分布式 KV 状态的能力。</strong></p>
+</blockquote>
+<p>它不是单机 Serving 的简单放大，而是 Serving 架构从“本地执行系统”走向“分布式状态系统”的关键一步</p>
+
+
+</article>
+<div class="pnav">
+ <span><a href="09-硬件解耦：如何不让芯片差异污染 Serving 核心.html">← 上一篇 09</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><a href="11-Serving Infra 的下一站：从模型执行器到分布式智能操作系统.html">下一篇 11 →</a></span>
+</div>
+</body>
+</html>

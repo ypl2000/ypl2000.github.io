@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="LLM Serving 系列学习笔记的架构知识地图：推理框架全流程、每层重难点与相关知识。个人学习使用，笔记原文转载。">
+<title>LLM Serving 系列 · 推理框架架构总览</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2;
+ --slate:#475569;--amber:#b45309;--violet:#6d28d9;--cyan:#0e7490;--rose:#be123c;--blue:#1d4ed8}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.85}
+.wrap{max-width:1020px;margin:0 auto;padding:0 22px}
+a{color:var(--teal)}
+/* 顶栏 */
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15.5px;white-space:nowrap}
+.topbar nav{margin-left:auto;display:flex;gap:14px;font-size:13.5px;flex-wrap:wrap}
+.topbar nav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topbar nav a:hover{color:var(--accent)}
+/* 头图 */
+.hero{background:linear-gradient(135deg,#0f172a,#134e4a 90%);color:#e6edf6;padding:52px 0 46px}
+.hero h1{margin:0 0 12px;font-size:29px;letter-spacing:.5px}
+.hero p{margin:0 0 16px;color:#b8c7d9;font-size:15px;max-width:760px}
+.legend{display:flex;gap:10px;flex-wrap:wrap;font-size:12.5px}
+.legend span{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.22);
+ border-radius:999px;padding:3px 12px;color:#d7e3f0}
+/* 架构图区 */
+.band{margin-top:34px}
+.band-label{display:flex;align-items:baseline;gap:12px;margin:0 0 12px}
+.band-label b{font-size:18px;color:#0f172a}
+.band-label i{font-style:normal;font-size:13px;color:var(--muted)}
+.nodes{display:grid;gap:14px}
+.n3{grid-template-columns:repeat(3,1fr)}
+.n2{grid-template-columns:1fr 1fr}
+.node{display:block;background:#fff;border:1px solid var(--line);border-left-width:4px;border-radius:12px;
+ padding:14px 18px;text-decoration:none;color:var(--text);cursor:pointer;
+ box-shadow:0 1px 3px rgba(15,23,42,.05);transition:transform .15s,box-shadow .15s}
+.node:hover{transform:translateY(-2px);box-shadow:0 5px 16px rgba(15,23,42,.11)}
+.node-top{display:flex;align-items:center;gap:9px;margin-bottom:3px}
+.chip{display:inline-flex;align-items:center;justify-content:center;min-width:34px;height:22px;
+ border-radius:6px;color:#fff;font-size:12.5px;font-weight:700;padding:0 7px;letter-spacing:.3px}
+.node b{font-size:15.5px}
+.node i{display:block;font-style:normal;font-size:13px;color:var(--muted);line-height:1.6}
+.node em{display:block;font-style:normal;font-size:12px;color:#94a3b8;margin-top:4px}
+.c-slate{background:var(--slate)}.c-teal{background:var(--accent)}.c-amber{background:var(--amber)}
+.c-violet{background:var(--violet)}.c-cyan{background:var(--cyan)}.c-rose{background:var(--rose)}.c-blue{background:var(--blue)}
+.bl-slate{border-left-color:var(--slate)}.bl-teal{border-left-color:var(--accent)}.bl-amber{border-left-color:var(--amber)}
+.bl-violet{border-left-color:var(--violet)}.bl-cyan{border-left-color:var(--cyan)}.bl-rose{border-left-color:var(--rose)}.bl-blue{border-left-color:var(--blue)}
+/* 层间连接件 */
+.down{display:flex;flex-direction:column;align-items:center;margin:14px 0 0;color:#94a3b8}
+.down i{font-style:normal;font-size:12.5px;color:var(--muted);margin-top:2px}
+.vline{width:0;height:26px;border-left:2px dashed #cbd5e1}
+/* 核心流水线 */
+.flow{display:flex;align-items:stretch;gap:0;flex-wrap:wrap}
+.fnode{flex:1 1 130px;min-width:126px;background:#fff;border:1px solid var(--line);border-top:4px solid var(--accent);
+ border-radius:12px;padding:12px 12px 10px;text-decoration:none;color:var(--text);text-align:center;cursor:pointer;
+ box-shadow:0 1px 3px rgba(15,23,42,.05);transition:transform .15s,box-shadow .15s;display:flex;flex-direction:column;justify-content:flex-start}
+.fnode:hover{transform:translateY(-2px);box-shadow:0 5px 16px rgba(15,23,42,.11)}
+.fnode .step{font-size:11.5px;color:#94a3b8;letter-spacing:.5px;margin-bottom:4px}
+.fnode b{font-size:14.5px;line-height:1.45}
+.fnode i{font-style:normal;font-size:12px;color:var(--muted);line-height:1.55;margin-top:4px}
+.fnode .src{margin-top:auto;padding-top:8px;font-size:11px;color:var(--accent);font-weight:600}
+.farr{align-self:center;color:#94a3b8;font-size:19px;padding:0 7px;flex:0 0 auto}
+.flow-note{margin-top:10px;font-size:12.5px;color:var(--muted);background:#fff;border:1px dashed var(--line);
+ border-radius:10px;padding:8px 16px;text-align:center}
+.loop{height:46px;margin:-4px 11% 18px 22%;border:2px dashed #94a3b8;border-top:none;border-radius:0 0 14px 14px;position:relative}
+.loop::before{content:"";position:absolute;left:-6px;top:-9px;width:9px;height:9px;
+ border:solid #94a3b8;border-width:2.5px 2.5px 0 0;transform:rotate(-45deg)}
+.loop span{position:absolute;left:50%;bottom:-13px;transform:translateX(-50%);background:#f3f4f6;
+ padding:0 14px;font-size:12.5px;color:#64748b;white-space:nowrap}
+/* 扩展维度汇流线 */
+.extlink{position:relative;height:30px;margin:30px 16.5% 0}
+.extlink::before{content:"";position:absolute;top:0;left:0;right:0;border-top:2px dashed #cbd5e1}
+.extlink s{position:absolute;top:0;height:30px;border-left:2px dashed #cbd5e1;text-decoration:none}
+.extlink s:nth-child(1){left:0}.extlink s:nth-child(2){left:50%}.extlink s:nth-child(3){right:0}
+/* 分组卡（扩展维度 / 部署演进） */
+.group{background:#fbfcfd;border:1px solid var(--line);border-radius:14px;padding:14px 16px 16px;display:flex;flex-direction:column;gap:10px}
+.group h3{margin:0 0 2px;font-size:14px;color:var(--muted);font-weight:600}
+.group h3 b{color:#0f172a}
+.group .hook{font-size:12px;color:#94a3b8}
+/* 详解卡片 */
+#cards{margin-top:56px}
+#cards>.sec-title{font-size:22px;color:#0f172a;border-bottom:2px solid var(--accent);display:inline-block;padding-bottom:6px;margin:0 0 6px}
+.sec-sub{color:var(--muted);font-size:13.5px;margin:0 0 22px}
+.a-card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:26px 30px 18px;margin-bottom:22px;
+ box-shadow:0 1px 3px rgba(15,23,42,.06);scroll-margin-top:72px}
+.a-card.flash{animation:glow 1.8s ease-out}
+@keyframes glow{0%{box-shadow:0 0 0 3px rgba(8,145,178,.55),0 4px 18px rgba(8,145,178,.25)}
+ 100%{box-shadow:0 1px 3px rgba(15,23,42,.06)}}
+.a-head{display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.a-head .chip{min-width:44px;height:26px;font-size:13.5px;margin-top:2px}
+.a-head h2{margin:0;font-size:20px;line-height:1.4}
+.a-head .pos{flex-basis:100%;font-size:13.5px;color:var(--muted);margin:2px 0 0}
+.a-acts{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
+.a-acts a{font-size:12.5px;text-decoration:none;border:1px solid var(--line);border-radius:999px;
+ padding:3px 12px;color:var(--muted);background:#f8fafc;white-space:nowrap}
+.a-acts a:hover{color:var(--accent);border-color:var(--accent)}
+.a-sec{margin-top:18px}
+.a-sec h4{margin:0 0 8px;font-size:14px;color:var(--accent);letter-spacing:.5px}
+.a-sec h4 small{color:#94a3b8;font-weight:400;letter-spacing:0}
+.chain{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:12px 16px;
+ font-size:13.5px;line-height:2.05;color:#334155}
+.chain b{color:var(--accent)}
+.chain .ar{color:#94a3b8;padding:0 3px}
+.hard{margin:0;padding-left:0;list-style:none;counter-reset:hd}
+.hard li{counter-increment:hd;position:relative;padding:7px 0 7px 40px;border-bottom:1px dashed #f1f5f9;font-size:14px}
+.hard li:last-child{border-bottom:none}
+.hard li::before{content:counter(hd);position:absolute;left:2px;top:9px;width:24px;height:24px;border-radius:7px;
+ background:#ecfdf5;color:var(--accent);font-weight:700;font-size:12.5px;display:flex;align-items:center;justify-content:center;border:1px solid #a7f3d0}
+.hard b{color:#0f172a}
+.know{display:flex;flex-wrap:wrap;gap:8px;padding:2px 0 4px}
+.know span{font-size:12.5px;background:#f1f5f9;border:1px solid #e2e8f0;border-radius:999px;padding:2px 12px;color:#475569}
+.concl{background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:10px;
+ padding:12px 18px;font-size:13.5px;color:#78350f;margin-top:2px}
+.concl p{margin:5px 0}
+.a-foot{display:flex;justify-content:space-between;gap:10px;margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:13px;flex-wrap:wrap}
+.a-foot a{color:var(--muted);text-decoration:none}
+.a-foot a:hover{color:var(--accent)}
+footer.sitefoot{border-top:1px solid var(--line);background:#fff;padding:22px 0 26px;color:var(--muted);font-size:13px;margin-top:52px;text-align:center}
+@media (max-width:820px){
+ .n3,.n2{grid-template-columns:1fr}
+ .farr{display:none}
+ .fnode{flex:1 1 44%}
+ .a-card{padding:20px 18px 14px}
+ .a-acts{margin-left:0;flex-basis:100%}
+ .loop{margin:0 6% 18px}
+ .extlink{margin:30px 8% 0}
+}
+</style>
+</head>
+<body>
+
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="#top">LLM Serving 系列 · 架构总览</a>
+ <nav>
+  <a href="#band0">① 全局视角</a>
+  <a href="#band1">② 核心流水线</a>
+  <a href="#band2">③ 扩展维度</a>
+  <a href="#band3">④ 部署演进</a>
+  <a href="#cards">模块详解</a>
+ </nav>
+</div></nav>
+
+<header class="hero" id="top"><div class="wrap">
+ <h1>LLM Serving 推理框架 · 架构知识地图</h1>
+ <p>由系列 13 篇文章提炼：四层架构看清整个推理框架的流程 —— 每层「核心流程 · 重难点 · 相关知识 · 关键结论」。
+ 点击架构图中的任意模块，即可跳转到对应详解卡片。</p>
+ <div class="legend">
+  <span>🖱 架构图模块 → 点击跳转详解</span>
+  <span>⤴ 卡片内「返回架构图」</span>
+  <span>📄「原文」打开同目录 md</span>
+  <span>← → 卡片底部顺序翻篇</span>
+ </div>
+</div></header>
+<div style="max-width:1020px;margin:16px auto -10px;padding:0 22px"><div style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:10px;padding:10px 18px;font-size:13.5px;color:#78350f;line-height:1.8">📌 本系列笔记为<b>原文转载</b>整理，仅作<b>个人学习使用</b>，不用于任何商业用途。</div></div>
+
+<main class="wrap" id="diagram">
+
+ <!-- ① 全局视角 -->
+ <section class="band" id="band0">
+  <div class="band-label"><b>① 全局视角</b><i>为什么难 · 怎么衡量 · 系统长什么样（对应 01 / 02 / 03 篇）</i></div>
+  <div class="nodes n3">
+   <a class="node bl-slate" href="#a01"><span class="node-top"><span class="chip c-slate">01</span><b>为什么 LLM Serving 难</b></span>
+    <i>范式转移：从"一次计算"到"持续生成过程"，Prefill 与 Decode 是两种 Workload</i><em>阅读地图 · 贯穿全系列的 KV 账</em></a>
+   <a class="node bl-slate" href="#a02"><span class="node-top"><span class="chip c-slate">02</span><b>如何衡量 Serving 系统</b></span>
+    <i>TTFT / TPOT / ITL / 吞吐 / Goodput 四维指标，指标 → 瓶颈 → 优化方向的映射</i><em>常见误区 · 分位数与 SLO</em></a>
+   <a class="node bl-slate" href="#a03"><span class="node-top"><span class="chip c-slate">03</span><b>鸟瞰 vLLM</b></span>
+    <i>控制面 / 数据面分离：API Server → EngineCore → Scheduler → Worker 的静态拓扑与请求生命周期</i><em>后续所有模块的代码落点</em></a>
+  </div>
+  <div class="down"><div class="vline"></div><i>以 03 篇的请求生命周期为骨架，展开核心流水线 ↓</i></div>
+ </section>
+
+ <!-- ② 核心推理流水线 -->
+ <section class="band" id="band1">
+  <div class="band-label"><b>② 核心推理流水线</b><i>一个推理迭代（step）内发生什么 —— 整个框架的主干流程</i></div>
+  <div class="flow">
+   <a class="fnode" href="#a03"><span class="step">STEP ①</span><b>请求入口</b><i>API Server 收请求<br>AsyncLLM 分词入队</i><span class="src">03 篇</span></a>
+   <span class="farr">→</span>
+   <a class="fnode" href="#a04"><span class="step">STEP ②</span><b>Scheduler 调度</b><i>Token Budget 内决定<br>这一轮谁跑、跑多少</i><span class="src">04 篇</span></a>
+   <span class="farr">→</span>
+   <a class="fnode" href="#a05"><span class="step">STEP ③</span><b>KV Cache 分配</b><i>BlockPool 分页分配物理块<br>Prefix Cache 命中复用</i><span class="src">05 篇</span></a>
+   <span class="farr">→</span>
+   <a class="fnode" href="#a06"><span class="step">STEP ④⑤</span><b>GPU 前向 + 采样</b><i>ModelRunner 备输入<br>Kernel 执行 · 概率采样</i><span class="src">06 篇</span></a>
+   <span class="farr">→</span>
+   <a class="fnode" href="#a03"><span class="step">STEP ⑥</span><b>解码返回</b><i>Detokenize 还原文本<br>SSE 流式推给客户端</i><span class="src">03 篇</span></a>
+  </div>
+  <div class="loop"><span>自回归循环：Decode 每步只产出 1 个 token，回到 ② 进入下一轮，直至 EOS</span></div>
+  <div class="flow-note">完整代码路径：Client → API Server → AsyncLLM → EngineCore.<b>step()</b> → Scheduler.schedule() → SchedulerOutput → Executor → Worker → ModelRunner.prepare_inputs → GPU Forward → Sampling → Detokenizer → SSE Stream（03 篇）</div>
+
+  <div class="extlink" aria-hidden="true"><s></s><s></s><s></s></div>
+ </section>
+
+ <!-- ③ 扩展维度 -->
+ <section class="band" id="band2">
+  <div class="band-label"><b>③ 三大扩展维度</b><i>流水线跑起来之后的三个工程深水区：卡不够 · 模型变 · 芯片变</i></div>
+  <div class="nodes n3">
+   <div class="group">
+    <h3><b>横向扩展</b> ｜ 一张卡算不动</h3>
+    <div class="hook">挂载点：STEP ④⑤ GPU 执行 · 多卡协同</div>
+    <a class="node bl-amber" href="#a071"><span class="node-top"><span class="chip c-amber">07.1</span><b>Multi-GPU 并行策略</b></span>
+     <i>DP / TP / PP / EP / CP 各切什么、通信代价多大、如何组合选型</i></a>
+    <a class="node bl-amber" href="#a072"><span class="node-top"><span class="chip c-amber">07.2</span><b>通信优化</b></span>
+     <i>NCCL 底座 · 计算通信重叠 · All-Reduce 拆解 · 问题定位方法</i></a>
+   </div>
+   <div class="group">
+    <h3><b>纵向适配</b> ｜ 模型世界在变</h3>
+    <div class="hook">挂载点：STEP ④⑤ 模型执行 · 新架构周级发布</div>
+    <a class="node bl-violet" href="#a08"><span class="node-top"><span class="chip c-violet">08</span><b>模型适配</b></span>
+     <i>ModelRegistry / Protocol / WeightsMapper / Attention Backend 的分层抽象，动态性上浮、静态性下沉</i></a>
+   </div>
+   <div class="group">
+    <h3><b>底座解耦</b> ｜ 芯片在变</h3>
+    <div class="hook">挂载点：STEP ④⑤ 之下 · 硬件层</div>
+    <a class="node bl-cyan" href="#a09"><span class="node-top"><span class="chip c-cyan">09</span><b>硬件解耦</b></span>
+     <i>Platform 能力中心 + Out-of-Tree 插件：不让芯片差异污染 Serving 核心（昇腾为例）</i></a>
+   </div>
+  </div>
+  <div class="down"><div class="vline"></div><i>单机跑通之后，部署架构随之演进 ↓</i></div>
+ </section>
+
+ <!-- ④ 部署演进 -->
+ <section class="band" id="band3">
+  <div class="band-label"><b>④ 部署架构演进</b><i>把 STEP ② 调度与 STEP ④⑤ 执行拆到不同资源池，再走向集群操作系统</i></div>
+  <div class="nodes n2">
+   <div class="group">
+    <h3><b>资源解耦</b> ｜ Prefill 与 Decode 分家</h3>
+    <div class="hook">P 池优化 TTFT · D 池优化 TPOT · 靠 KV Transfer 衔接</div>
+    <a class="node bl-rose" href="#a10"><span class="node-top"><span class="chip c-rose">10</span><b>PD 分离</b></span>
+     <i>一次请求的 5 步旅程：Router 选 P 节点 → Prefill → KV Transfer → D 接管 → 持续 Decode</i></a>
+    <a class="node bl-rose" href="#a10s"><span class="node-top"><span class="chip c-rose">10+</span><b>补充篇 · 传输内容与异构约束</b></span>
+     <i>P→D 到底传什么（7 项内容）、异构部署的 7 项关键约束</i></a>
+   </div>
+   <div class="group">
+    <h3><b>终局形态</b> ｜ 分布式智能操作系统</h3>
+    <div class="hook">Goodput 驱动 · 推理状态平面 · 自动执行计划</div>
+    <a class="node bl-blue" href="#a11"><span class="node-top"><span class="chip c-blue">11</span><b>Serving Infra 的下一站</b></span>
+     <i>从模型执行器到分布式智能操作系统：Serving Plan Compiler / Inference State Plane</i></a>
+   </div>
+  </div>
+ </section>
+
+ <!-- 详解卡片 -->
+ <section id="cards">
+  <h2 class="sec-title">模块详解</h2>
+  <p class="sec-sub">与架构图一一对应：每层的核心流程、需要关注的重难点、相关知识盘与关键结论。完整推导与源码解析请点「原文」。</p>
+
+  <article class="a-card" id="a01">
+   <div class="a-head"><span class="chip c-slate">01</span><h2>为什么 LLM Serving 比传统 DL 推理难</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/01-为什么 LLM Serving 比传统 DL 推理难.html">📄 原文</a></div>
+    <p class="pos">全局视角 ｜ 系列开篇立论：难在<b>执行模型改变</b>，而非模型变大</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· LLM 请求生命周期 vs 传统 DL</small></h4>
+    <div class="chain">传统 DL：请求进入 → 组 Batch → <b>一次 Forward</b> → 返回结果<br>
+     LLM：请求进入 → <b>Prefill</b>（N 个 Prompt Token 并行、批量写 KV Cache）→ 首 Token → <b>Decode Step</b>（每步 1 个新 Token、追加 1 个 KV 位置、读全部历史 KV）→ 循环 → EOS / 长度上限</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>范式转移</b>——服务对象从"一次 Forward"变成带动态生命周期与持久状态的生成任务：输入长度（几十到数万 token）、输出何时 EOS、每轮活跃请求集合均不可预知，传统"shape 固定 / 一次完成 / 内存一次分配"假设全部失效。</li>
+     <li><b>Prefill vs Decode 双 Workload</b>——Prefill 单步算 N 个 Token，Compute-Bound（瓶颈算力）；Decode 每步只算 1 个 Token 却要读全部历史 KV，Memory-Bound（瓶颈 HBM 带宽与 KV Cache）。适合一者的优化未必适合另一者。</li>
+     <li><b>吞吐-时延权衡</b>——增大 Batch 共享权重读取、吞吐先升后饱和，但 TTFT / ITL / P99 恶化；目标是 SLO 约束下选执行规模，不是追求最大 Batch。</li>
+     <li><b>带状态推理</b>——KV Cache 的位置、容量、复用与回收直接决定最大并发数、可支持上下文长度与整体吞吐，这是与传统 Serving 的本质区别。</li>
+     <li><b>贯穿全系列的 KV 账</b>——Llama-3-70B（FP16、80 层、GQA-8、8×H100 TP=8）：每 token 每层 KV = 4KB、全模型 320KB/token；示例请求（2050 进 / 2350 出）KV 峰值约 734MB；每卡权重 17.6GB。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>Prefill / Decode</span><span>KV Cache</span><span>Continuous Batching</span><span>Token Budget</span><span>Chunked Prefill</span><span>FlashAttention</span><span>PagedAttention</span><span>CUDA Graph</span><span>GQA-8</span><span>Admission Control</span><span>抢占与重计算</span><span>TTFT / ITL / P99</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 三个根本变化：<b>静态→动态执行、无状态→带状态、单一→Prefill/Decode 混合 Workload</b>。</p>
+     <p>② 优化必须对症：提高 GPU 利用率不一定降低 Decode 延迟；只优化 Kernel 不解决排队；只优化 KV Cache 不改善长 Prompt 的 TTFT。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span><a href="#top">系列开篇</a> ｜ 下一篇 → <a href="#a02">02 如何衡量</a></span></div>
+  </article>
+
+  <article class="a-card" id="a02">
+   <div class="a-head"><span class="chip c-slate">02</span><h2>如何衡量一个 LLM Serving 系统</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/02-如何衡量一个 LLM Serving 系统.html">📄 原文</a></div>
+    <p class="pos">全局视角 ｜ 建立<b>延迟 / 吞吐 / 效率 / 质量</b>四维指标体系，并映射到瓶颈与优化方向</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· 指标分析流程</small></h4>
+    <div class="chain">确认指标口径 <span class="ar">→</span> 区分 Prefill / Decode / 排队 / 网络因素 <span class="ar">→</span> 对比均值与 P95 / P99 <span class="ar">→</span> 结合 GPU、显存、带宽、通信定位瓶颈 <span class="ar">→</span> 选择与指标对应的优化方向 <span class="ar">→</span> 用 Goodput 与 SLO 达标率验证有效性</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>TTFT ≠ Prefill 时间</b>——TTFT = 排队 + 调度等待 + Prefill + 首 Token 生成 + 网络传输；TTFT 高不一定是 Kernel 低效，高并发时排队可能是主要部分。</li>
+     <li><b>TPOT vs ITL</b>——TPOT 是 Decode 平均每 Token 时间，用户感知的是逐 Token 到达间隔（ITL）；调度抖动可使平均 TPOT 正常而 ITL 的 P99 很差，流式体验必须看分位数。</li>
+     <li><b>GPU 利用率的误导性</b>——利用率高可能只是在等访存或通信；Decode 受带宽限制时 MFU 低也不代表低效，需结合 HBM 带宽利用率、通信时间综合判断。</li>
+     <li><b>Goodput 才接近真实价值</b>——单位时间满足 SLO 的有效请求 / Token 数；"吞吐高但 Goodput 低" = 拿延迟换吞吐，解法是 SLO-aware 调度、限 Batch 上限、资源隔离。</li>
+     <li><b>显存不是越满越好</b>——过度填充导致新请求无法接入、抢占频繁、换入换出、P99 升高与 OOM 风险；须与命中率、抢占率联合分析。</li>
+     <li><b>Requests/s 不可单独比较</b>——脱离输入输出长度分布无意义；规范报告应含并发数、Token 数、TTFT、TPOT/ITL、P99。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>TTFT</span><span>TPOT</span><span>ITL</span><span>E2E Latency</span><span>Queueing Time</span><span>Output/Total Tokens/s</span><span>Goodput</span><span>MFU</span><span>P50/P95/P99</span><span>SLO 达标率</span><span>Cost per Token</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 核心原则：<b>不同指标对应不同瓶颈，不同瓶颈对应不同优化手段</b>——不能用提高吞吐的方法解决 TTFT。</p>
+     <p>② 吞吐衡量做了多少工作，延迟衡量用户等了多久，Goodput 衡量满足 SLO 前提下完成了多少有效工作；在线服务应报告 均值 + P95/P99 + SLO 达标率。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a01">01 为什么难</a> ｜ 下一篇 → <a href="#a03">03 鸟瞰 vLLM</a></span></div>
+  </article>
+
+  <article class="a-card" id="a03">
+   <div class="a-head"><span class="chip c-slate">03</span><h2>鸟瞰 vLLM：一个请求如何穿过整个推理系统</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/03-鸟瞰 vLLM：一个请求如何穿过整个推理系统.html">📄 原文</a></div>
+    <p class="pos">全局视角 ｜ 自顶向下拆解 vLLM V1 <b>控制面 / 数据面</b>架构与请求完整数据通路，是全系列的代码地图</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· 一次请求的完整生命周期</small></h4>
+    <div class="chain">Client <span class="ar">→</span> API Server（FastAPI，OpenAI 兼容）<span class="ar">→</span> AsyncLLM 分词 <span class="ar">→</span> EngineCore.<b>step()</b> <span class="ar">→</span> Scheduler.schedule() <span class="ar">→</span> SchedulerOutput <span class="ar">→</span> Executor <span class="ar">→</span> Worker <span class="ar">→</span> ModelRunner.prepare_inputs <span class="ar">→</span> GPU Forward <span class="ar">→</span> Sampling <span class="ar">→</span> Detokenizer <span class="ar">→</span> SSE 流式返回</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>控制面 / 数据面分离</b>——Client→EngineCore 是入队路径（传"生成什么"），EngineCore→Worker→ModelRunner 是执行路径（带本轮 batch 与 block 布局）；调度状态留在 EngineCore，模型侧只负责单次前向。</li>
+     <li><b>EngineCore 中央调度大脑</b>——step() 驱动整个推理循环；初始化顺序：model_executor → KV Cache → Scheduler。</li>
+     <li><b>资源管理双核</b>——Scheduler（约 3000 行）决定每轮谁参与推理、分配多少 token 预算；KVCacheManager 负责 KV 物理块的分配、释放、复用与驱逐。</li>
+     <li><b>Executor 抽象与 Ray 的真实定位</b>——"用不用 Ray"是部署方式差异而非执行模型差异；"一个 GPU 固定绑一个 Worker 进程"不是绝对规则。</li>
+     <li><b>数据流的形态变化</b>——文本 → token_ids → 调度决策（block_table）→ 张量输入（positions/slot_mapping）→ logits → token id → 文本，同一请求在各层以不同形态流转。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>API Server</span><span>AsyncLLM</span><span>EngineCoreRequest</span><span>SchedulerOutput</span><span>block_table / slot_mapping</span><span>KVCacheManager</span><span>Executor（UniProc/Multiproc/Ray）</span><span>Worker</span><span>ModelRunner</span><span>Sampling（top-p/top-k/temp）</span><span>Detokenizer</span><span>SSE</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 模块分工一句话：<b>EngineCore 驱动循环，Scheduler 决定这轮谁跑、跑多少 token，Executor 把任务分发下去，ModelRunner 真正调用 GPU 算</b>。</p>
+     <p>② 与 01 篇"四问"对齐构成系列骨架：这轮谁执行多少→Scheduler；状态放哪→KVCacheManager；怎么算得更快→ModelRunner/Backend；怎么扩出去→Executor/集合通信。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a02">02 如何衡量</a> ｜ 下一篇 → <a href="#a04">04 Scheduler</a></span></div>
+  </article>
+
+  <article class="a-card" id="a04">
+   <div class="a-head"><span class="chip c-teal">04</span><h2>Scheduler：GPU 这一轮到底给谁用</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/04-Scheduler：GPU 这一轮到底给谁用.html">📄 原文</a></div>
+    <p class="pos">核心流水线 · STEP ② ｜ GPU 每轮迭代把计算额度分给哪些请求、各推进多少 token（对应 vLLM v1/core/sched/scheduler.py）</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· schedule() 一轮</small></h4>
+    <div class="chain">确定 Token Budget（如 512）<span class="ar">→</span> 遍历 Running：算 remaining <span class="ar">→</span> num_new_tokens = min(剩余， 预算， 长Prefill阈值) <span class="ar">→</span> allocate_slots 分 KV 块 <span class="ar">→</span> 失败则抢占 <span class="ar">→</span> 遍历 Waiting：算前缀命中并准入 <span class="ar">→</span> 输出 SchedulerOutput <span class="ar">→</span> ModelRunner 执行 <span class="ar">→</span> 更新进度进下一轮</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>Continuous Batching</b>——Static Batch 须等最慢请求、GPU 利用率随完成逐渐下降；Continuous Batching 每轮迭代前重新决定本轮服务谁，完成即释放、新请求每轮可尝试加入。</li>
+     <li><b>Chunked Prefill 的 TTFT↔TPOT 权衡</b>——32K 长 Prompt 一次 Prefill 造成队头阻塞（所有 Decode 请求 TPOT 尖峰）；拆 Chunk 后 TTFT 上升换 TPOT 平稳（例：2050 token、阈值 512 → 512×4+2）。</li>
+     <li><b>Token Budget 资源分配模型</b>——Request 是调度对象、token 是资源：约束 Σx_i ≤ Budget 且 0 ≤ x_i ≤ remaining_i；例 A 400 + B 1 + C 1 = 402，剩余 110 还可当场接纳 Waiting 的 D。</li>
+     <li><b>Mixed Batch 统一抽象</b>——Prefill（remaining 大）、Decode（remaining≈1）、Speculative（remaining&gt;1）只是推进需求取值不同，无需独立 Scheduler，一轮可混排（如 512 = Prefill 256 + Decode 1 + Spec 5 + Prefill 250）。</li>
+     <li><b>双重资源约束</b>——Token Budget 管"本轮最多算多少"，KV Cache 管"装不装得下"；预算够但 Free Blocks 不足照样无法接纳（Admission Control）。</li>
+     <li><b>Preemption 与防震荡</b>——V1 主用 Recomputation（释放 KV、LIFO 插回 Waiting 队首），因 Prefix Cache 命中使重算代价大降；Swapping 省算力但吃 CPU 内存与 PCIe 带宽；Watermark 预留安全余量防 Admission→Preemption 反复震荡。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>Continuous Batching</span><span>Static Batching</span><span>Chunked Prefill</span><span>long_prefill_token_threshold</span><span>max_num_scheduled_tokens</span><span>num_computed_tokens</span><span>Mixed Batch</span><span>SchedulerOutput</span><span>slot_mapping / block_table</span><span>Admission Control</span><span>Preemption</span><span>Recomputation vs Swapping</span><span>Watermark</span><span>Head-of-Line Blocking</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① Scheduler 本质不是维护"Batch"，而是 <b>Token Budget 与 KV Cache 双重约束下，每轮动态决定谁执行、各推进多少 token</b>。</p>
+     <p>② Prefill 与 Decode 不是两套调度算法，只是 token 推进需求不同；上层优化（如投机解码）只改变一轮推进的 token 数，不改变调度抽象。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a03">03 鸟瞰</a> ｜ 下一篇 → <a href="#a05">05 KV Cache</a></span></div>
+  </article>
+
+  <article class="a-card" id="a05">
+   <div class="a-head"><span class="chip c-teal">05</span><h2>KV Cache：LLM Serving 的第一号内存问题</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/05-KV Cache：LLM Serving 的第一号内存问题.html">📄 原文</a></div>
+    <p class="pos">核心流水线 · STEP ③ ｜ KV 显存为何被浪费，PagedAttention 如何分页管理、复用与压缩瘦身</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· KV Cache 生命周期</small></h4>
+    <div class="chain">逻辑序列按 block_size=16 切块（2050 token → 129 块）<span class="ar">→</span> allocate_slots：BlockPool 从 LRU 空闲队列取块（不足则驱逐缓存块）<span class="ar">→</span> Block Table 登记虚拟块→物理块映射 <span class="ar">→</span> Prefill 批量写 / Decode 每步增量追加 1 slot <span class="ar">→</span> Kernel 只认 Block Table 按块读 <span class="ar">→</span> 完成 free：ref_cnt 归零才回收 <span class="ar">→</span> 写满的块进 Prefix Cache 复用</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>碎片灾难源于"不确定性"</b>——按最大长度预留连续显存产生内部 + 外部碎片；PagedAttention 论文（SOSP'23）实测当时 SOTA 系统有效 KV 仅占显存 20.4%~38.2%，约 60%~80% 被浪费。</li>
+     <li><b>OS 分页思想搬到 GPU</b>——逻辑块→物理块经 Block Table 映射（类比页表），请求看连续序列、KV 实际零散存放；"写满当前块再要一块"使预留彻底消失。</li>
+     <li><b>只有写满的块才可缓存</b>——Prefix Cache 命中粒度对齐 block_size；2000 token system prompt 恰 125 整块，第二请求全命中：TTFT 从约 92ms 降到 5ms 量级，625MB KV 靠 ref_cnt 共享而非复制。</li>
+     <li><b>链式哈希的正确性</b>——块哈希 = f(前驱块哈希， 本块 token ids, extra_keys)，只有完全相同前缀才命中；NONE_HASH 随机（防跨租户探测）vs 设 PYTHONHASHSEED 可复现是一对取舍。</li>
+     <li><b>三层压缩正交可叠加</b>——管理层（PagedAttention / Prefix Cache）× 架构层（GQA / MLA：Llama-3-70B GQA-8 KV 为 MHA 的 12.5%，MLA 存 576 维 latent 约 3~4×）× 数值层（FP8 省 50%）。</li>
+     <li><b>量化与分层存储</b>——KV 是"并发×上下文"乘积（70B 单请求 4K 上下文 FP16 达 1.34GB）；FP8 实践中最安全（softmax 指数会放大 Key 误差）；不足时重算 / 换出 / 量化+Offload 三选一。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>PagedAttention</span><span>内部/外部碎片</span><span>Block Table</span><span>BlockPool / free_block_queue</span><span>block_size</span><span>ref_cnt</span><span>Prefix Cache</span><span>链式哈希</span><span>extra_keys</span><span>MQA / GQA</span><span>MLA + Absorbing</span><span>KV Quantization</span><span>量化粒度 per-group</span><span>分层存储 HBM/DRAM/SSD</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 显存不是被模型吃掉的，是<b>被"不确定性"浪费掉的</b>——预留式分配下有效 KV 仅占两到四成。</p>
+     <p>② Prefix Cache 是性价比最高的优化之一；抢占重算因 Prefix 命中而远比理论便宜；三层优化（管理×架构×数值）正交可叠加。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a04">04 Scheduler</a> ｜ 下一篇 → <a href="#a06">06 GPU 执行</a></span></div>
+  </article>
+
+  <article class="a-card" id="a06">
+   <div class="a-head"><span class="chip c-teal">06</span><h2>GPU 执行：如何让每个 Token 算得更快</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/06-GPU 执行：如何让每个 Token 算得更快.html">📄 原文</a></div>
+    <p class="pos">核心流水线 · STEP ④⑤ ｜ 已确定要算的 token 如何算得更快——Decode 侧四种浪费形态及对策</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· Decode 一步 ~10ms 的四种浪费与对策</small></h4>
+    <div class="chain">GPU 等 CPU 发指令 <span class="ar">→</span> <b>CUDA Graph</b> 录制重放 ｜ GPU 等 HBM 送数 <span class="ar">→</span> <b>FlashAttention / 算子融合</b> ｜ 每个字节太胖 <span class="ar">→</span> <b>FP8/INT8 量化</b> ｜ 轮次太多 <span class="ar">→</span> <b>投机解码</b>（Draft 猜 K 个 → Target 一次并行验证 → 拒绝采样 → KV 回滚重采样）</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>Launch-Bound 气泡</b>——单 kernel 执行时间 &lt; CPU 提交时间（2~5μs）时队列抽干出气泡；Decode 小 kernel 下 400 个 kernel 一步仅 37.5% 时间在干活，故 CUDA Graph 基本只对 Decode 有意义。</li>
+     <li><b>CUDA Graph 模式选择</b>——约束：kernel 形状固定（按 Batch Size 分桶预捕获）、内存地址固定、不支持动态控制流；工业主流 FULL_DECODE_ONLY，PD 分离后 Decode 节点 FULL、Prefill 节点 PIECEWISE。</li>
+     <li><b>FlashAttention 收益边界</b>——显存 O(N²)→O(N) 无条件成立，但 FLOPs 一分未减，是带宽 + 显存胜利而非计算胜利；Decode 侧 query_len=1 切不动 query 方向，须改 split-KV / Flash-Decoding 沿 KV 维切。</li>
+     <li><b>量化对象不均匀受益</b>——权重量化直击 Decode 带宽（权重读取减半），激活量化主要加速 Prefill GEMM，KV 量化换并发与上下文；优化前必须先判断瓶颈在哪侧。</li>
+     <li><b>投机解码本质与边界</b>——不消除自回归依赖，被并行化的是"验证"不是"生成"；拒绝采样保证输出分布与 Target 严格一致；接受率一低收益即蒸发，高并发高利用率下额外 Draft 计算可能负收益。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>Memory-bound / Compute-bound</span><span>Kernel Launch Overhead</span><span>CUDAGraphMode 五模式</span><span>Tiling / SRAM</span><span>Online Softmax</span><span>FlashAttention-2/3</span><span>Kernel Fusion</span><span>GPTQ / AWQ / SmoothQuant</span><span>FP8 E4M3</span><span>拒绝采样</span><span>EAGLE / Medusa / MTP</span><span>Flash-Decoding / split-KV</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① <b>3% vs 97%</b>：示例中 Prefill ≈92ms（3%），Decode 300 步 ≈3000ms（97%）——端到端优化必须主攻 Decode；权重读取下界约 5.3ms/步，实测 ~10ms。</p>
+     <p>② CUDA Graph 上限省 20%、实测 5~15%；投机解码示例等效 TPOT 15ms→7.7ms（约 2×），本质是"拿闲置算力换延迟"；量化质量必须用 benchmark 实测。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a05">05 KV Cache</a> ｜ 下一篇 → <a href="#a071">07.1 并行策略</a></span></div>
+  </article>
+
+  <article class="a-card" id="a071">
+   <div class="a-head"><span class="chip c-amber">07.1</span><h2>Multi-GPU（上）：五种并行策略</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/07.1-Multi-GPU：一张卡不够时如何扩展.html">📄 原文</a></div>
+    <p class="pos">扩展维度 · 横向 ｜ DP / TP / PP / EP / CP 各切什么、通信代价多大、如何组合选型</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· 选型决策链 与 TP 单层执行</small></h4>
+    <div class="chain">装不下一个 Linear <span class="ar">→</span> <b>TP</b>（层内切矩阵）｜ 整模型太大 <span class="ar">→</span> <b>PP</b>（按层切流水）｜ Expert 太多 <span class="ar">→</span> <b>EP</b>（按 Expert 切）｜ 上下文太长 <span class="ar">→</span> <b>CP</b>（按序列切）｜ 要更多吞吐 <span class="ar">→</span> <b>DP</b>（整体复制，永远最外层）<br>
+     TP 单层：X → QKV Column Parallel（无通信）→ Attention 本地 → O Row Parallel → <b>All-Reduce</b> → Gate/Up Column → Down Row → <b>All-Reduce</b>（每层 2 次）</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>TP 的 Column/Row 配对</b>——Column 的输出分片恰为 Row 的输入分片，层内中段零通信、段末 All-Reduce 在关键路径同步等待；Decode 一步逻辑通信量 ≈80MiB，故 TP 只适合 NVLink 机内互联、跨机评分最低。</li>
+     <li><b>PP 流水线气泡</b>——Fill / Drain 阶段部分 GPU 无活可干；训练可用海量 microbatch 填满，在线推理请求动态变化，气泡与负载不均难彻底消除——PP 适合重吞吐场景，单请求低延迟需谨慎。</li>
+     <li><b>PP 重构 KV Cache</b>——KV 按层切片散落各 stage（单卡只存 1/PP 的层）；但引入跨 stage 全局调度一致性难题：各 stage 须同步分配/释放同一请求的块。</li>
+     <li><b>EP 的负载均衡</b>——瓶颈是 Router + 动态 Dispatch + 变长 Grouped GEMM；同步模式下整层时间 = max(各卡时间)，一个热门 Expert（96 token vs 均值 32）即可拖垮整层；Capacity Factor 大则开销大、小则丢 token。</li>
+     <li><b>通信计算重叠</b>——token 分 Chunk 错相执行（算 Chunk0 时为 Chunk1 Dispatch），总耗时从三者之和降到 ≈max(T_comm, T_compute)；Expert 计算太小时通信藏不住。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>Column / Row Parallel</span><span>All-Reduce 通信量公式</span><span>Ring All-Reduce</span><span>Pipeline Stage</span><span>Fill/Steady/Drain</span><span>MoE / Router / Top-K</span><span>All-to-All Dispatch/Combine</span><span>Grouped GEMM</span><span>负载均衡损失</span><span>Ring Attention</span><span>PCP / DCP</span><span>DeepEP</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① <b>DP 与其余四者不同类</b>：TP/PP/EP/CP 解决"装不下"（被迫拆分），DP 解决"想要更多"；生产部署 = 先用 TP/PP/EP/CP 塞进一组卡，再用 DP 复制 N 份。</p>
+     <p>② 经验法则：TP 优先 NVLink 机内；PP 用于跨机；EP 通常 TP×EP=总卡数；&gt;8 卡 → TP=8 + PP=N；EP 性能 ≈ 通信效率 × 负载均衡 × 本地 GEMM × 重叠能力。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a06">06 GPU 执行</a> ｜ 下一篇 → <a href="#a072">07.2 通信优化</a></span></div>
+  </article>
+
+  <article class="a-card" id="a072">
+   <div class="a-head"><span class="chip c-amber">07.2</span><h2>Multi-GPU（下）：通信优化</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/07.2-Multi-GPU：一张卡不够时如何扩展.html">📄 原文</a></div>
+    <p class="pos">扩展维度 · 横向 ｜ 推理系统的性能深水区——通信如何拖慢推理、如何被隐藏与压缩</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· 问题定位链 与 优化优先级链</small></h4>
+    <div class="chain">nvidia-smi topo -m 确认拓扑 <span class="ar">→</span> NCCL_DEBUG 确认识别结果 <span class="ar">→</span> NCCL Tests 基准（区分库/应用问题）<span class="ar">→</span> 按消息规模分方向（小消息查延迟、大消息查带宽）<span class="ar">→</span> 减少同步/拷贝/次数 <span class="ar">→</span> 计算通信重叠 <span class="ar">→</span> CustomAllreduce <span class="ar">→</span> 最后才调 NCCL_ALGO/PROTO</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>Decode 阶段通信敏感</b>——单步生成 Token 少、GEMM 计算量下降，但跨 GPU 同步仍在；通信启动延迟、同步等待、小消息处理效率成为主导瓶颈。</li>
+     <li><b>带宽口径不可直接比</b>——NVLink 宣传值可能是单卡聚合 / 双向 / 系统总量；量级参考：NVLink 数百 GB/s、PCIe Gen5 x16 约 64GB/s 单向、IB NDR 400Gb/s 约 50GB/s。</li>
+     <li><b>多开 Stream ≠ 自动重叠</b>——争用同一硬件资源、隐式同步、输入未就绪都会让两 Stream 退化串行；关键是重新设计依赖关系，而非简单加 Stream。</li>
+     <li><b>All-Reduce 拆解的收益来源</b>——All-Reduce = Reduce-Scatter + All-Gather，拆分后总通信量同量级，收益来自重叠（局部就绪即算）而非减少字节；需后续计算能按分片执行。</li>
+     <li><b>CustomAllreduce 适用边界</b>——单机多卡 + 良好 P2P/NVLink + 小消息 + Decode 低延迟敏感时优于 NCCL；跨节点 / 大消息仍归 NCCL。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>NCCL</span><span>通信原语（All-Reduce/All-Gather/Reduce-Scatter/All-to-All）</span><span>Ring / Tree 算法</span><span>小消息 vs 大消息协议</span><span>GroupCoordinator</span><span>GPUDirect RDMA</span><span>NUMA 亲和性</span><span>MoE 通信链</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 端到端时间 = 计算时间 + <b>无法隐藏的</b>通信时间 + 同步等待 + 数据重排拷贝；目标是降低通信在完整推理路径的可见时间，而非某次 All-Reduce 基准数字最大。</p>
+     <p>② 无重叠时 ≈ T_compute + T_comm，重叠后 ≈ max(两者)；调优铁律："先确认拓扑，再定位瓶颈，最后修改参数"。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a071">07.1 并行策略</a> ｜ 下一篇 → <a href="#a08">08 模型适配</a></span></div>
+  </article>
+
+  <article class="a-card" id="a08">
+   <div class="a-head"><span class="chip c-violet">08</span><h2>模型适配：如何跟上变化极快的模型世界</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/08-模型适配：如何跟上变化极快的模型世界.html">📄 原文</a></div>
+    <p class="pos">扩展维度 · 纵向 ｜ vLLM 如何用分层抽象在不污染运行时的前提下快速接入新模型</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· 抽象主链路 与 适配机制演进</small></h4>
+    <div class="chain">ModelConfig（配置语义）<span class="ar">→</span> ModelRegistry（模型发现）<span class="ar">→</span> nn.Module + Protocol（能力契约）<span class="ar">→</span> ModelLoader / WeightsMapper（权重装配）<span class="ar">→</span> Worker + ModelRunner（运行时执行）<span class="ar">→</span> Attention Metadata <span class="ar">→</span> Attention Backend <span class="ar">→</span> Kernel<br>
+     机制演进：硬编码 <span class="ar">→</span> Monkey Patch <span class="ar">→</span> Custom Op <span class="ar">→</span> IR <span class="ar">→</span> 组合标准计算原语</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>每种差异都会捅穿多层</b>——换 Attention 变体影响 Kernel 和 KV 布局；Mamba 的 state 不是块状；引入 MoE 影响路由 / Dispatch / 通信 / 负载均衡——而新架构发布频率是周级。</li>
+     <li><b>四目标互相冲突</b>——正确性、性能、可维护性、可扩展性不总一致；专用 Kernel 性能高但灵活性低，适配本质是工程折中。</li>
+     <li><b>动态运行时 vs 静态执行图</b>——batch/序列长度持续变化、KV 地址不固定，编译器却要稳定 shape；解法是"动态性上浮（Scheduler/Metadata）、静态性下沉（torch.compile / CUDA Graph / shape bucketing）"。</li>
+     <li><b>权重装配最易出错</b>——同时含重命名、拆分合并（QKV / gate-up）、并行切分、量化格式、设备布局；加载错误不一定崩溃，可能只是 logits 偏差，需参数→Shape→统计量→单层输出→logits 逐级验证。</li>
+     <li><b>MLA 改变缓存语义、MTP 引入事务化状态</b>——KV Cache 从 [b,s,h,d] 变 latent_cache，波及分配 / 写入 / 前缀复用；投机回滚是涉及序列、block table、位置、采样状态的一致性事务。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>ModelConfig</span><span>ModelRegistry（inspect/resolve）</span><span>Protocol 能力契约</span><span>WeightsMapper</span><span>SchedulerOutput（step-level IR）</span><span>Attention Metadata</span><span>Attention Backend</span><span>KV / Tokenizer / 多模态 / Plugin 横切抽象</span><span>复用决策三结果</span><span>Monkey Patch / Custom Op / IR</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 核心工程哲学：<b>"动态性上浮、静态性下沉、以契约连接两者"</b>。</p>
+     <p>② DeepSeek 接入本质是三次协议扩展：MLA 扩展缓存协议、MoE 扩展执行协议、MTP 扩展状态协议；Attention 并不总是第一瓶颈——先 profiling 证明关键路径，再选择性特化。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a072">07.2 通信</a> ｜ 下一篇 → <a href="#a09">09 硬件解耦</a></span></div>
+  </article>
+
+  <article class="a-card" id="a09">
+   <div class="a-head"><span class="chip c-cyan">09</span><h2>硬件解耦：如何不让芯片差异污染 Serving 核心</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/09-硬件解耦：如何不让芯片差异污染 Serving 核心.html">📄 原文</a></div>
+    <p class="pos">扩展维度 · 底座 ｜ 同一套 Serving 逻辑跨芯片运行且核心不被硬件分支污染（以昇腾 OOT 适配为例）</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· Platform 诞生链 与 能力派发</small></h4>
+    <div class="chain">读取运行环境 <span class="ar">→</span> 检测可用设备 <span class="ar">→</span> 加载内置平台或 OOT 插件 <span class="ar">→</span> 选择匹配的平台实现 <span class="ar">→</span> 暴露全局 <b>current_platform</b> <span class="ar">→</span> 后续代码统一查能力<br>
+     能力派发：current_platform ─ Attention Backend Selector（动态选择）／ Kernel Import（直接导入）／ Device Communicator（NCCL/RCCL/HCCL）／ Worker / Device Runtime ／ 平台配置</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>if-else 反例的代价</b>——在 Scheduler / KV Cache / 执行器里堆 is_cuda() / is_ascend() 分支：每加一种芯片要改多个核心模块，测试矩阵从"功能 × 模型"膨胀为"功能 × 模型 × 芯片"。</li>
+     <li><b>"三层调用栈"是误解</b>——真实关系不是 Platform→Backend→所有 Kernel 的调用链；大量 Kernel、通信组件由 Platform 直接提供，Attention Backend 只是"其中一个重要的动态选择器"。</li>
+     <li><b>Attention 为何单独做 Selector</b>——计算量大 + 硬件敏感 + 场景复杂（prefill/decode、paged KV、MLA、head size、dtype）；同一块 GPU 上不同配置可能选中 FlashAttention、FlashInfer 或 Triton。</li>
+     <li><b>Attention Backend ≠ 一个数学算子</b>——必须理解 vLLM 运行时语义：Attention Metadata、Block Table / KV 布局、prefill/decode 分派；只会算 attention 但不懂 block 布局的算子当不了完整 Backend。</li>
+     <li><b>KV Cache 分层纪律与 OOT 边界</b>——Manager 只管逻辑 block 且平台无关，平台 Worker 只管物理落地；"主仓库一行不改"依赖主仓库已有稳定扩展点，抽象缺失时插件仍需提补丁。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>Platform / current_platform</span><span>Out-of-Tree 插件（vllm-ascend）</span><span>CANN / HCCL</span><span>NCCL / RCCL / XCCL</span><span>Attention Selector</span><span>import_kernels</span><span>提前失败</span><span>解耦五检查</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 三句话：Serving 核心依赖<b>抽象能力</b>而非具体芯片；Platform 是硬件能力中心但不是所有组件的唯一调用父类；OOT 独立演进的前提是主仓库提供稳定扩展契约。</p>
+     <p>② 验收标准：能在 NPU 上返回结果只说明链路打通；在真实模型、真实 batch、真实上下文长度下稳定达到目标吞吐，才算完成工程适配。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a08">08 模型适配</a> ｜ 下一篇 → <a href="#a10">10 PD 分离</a></span></div>
+  </article>
+
+  <article class="a-card" id="a10">
+   <div class="a-head"><span class="chip c-rose">10</span><h2>PD 分离：从资源混部走向计算解耦</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/10-PD 分离：从资源混部走向计算解耦.html">📄 原文</a></div>
+    <p class="pos">部署演进 ｜ 为何及如何把 Prefill / Decode 拆成两个资源池，并用 KV Transfer 衔接</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· 一次请求的 5 步旅程</small></h4>
+    <div class="chain">① Router 选 Prefill 节点（按 Prompt 长度 / 队列 / Prefix 命中）<span class="ar">→</span> ② P 节点前向计算 Prompt、生成各层 K/V <span class="ar">→</span> ③ <b>KV Transfer</b>（KV Tensor + block table + 元数据）<span class="ar">→</span> ④ D 节点接收写入、重建映射（不重复 Prefill）<span class="ar">→</span> ⑤ 持续 Decode 直至完成</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>两种资源画像冲突</b>——Prefill 计算密集、优化 TTFT；Decode 访存敏感、优化 TPOT。混部的问题不是"不能同时跑"，而是需求不同却共享调度与硬件：长 Prompt 抢占 Decode、Decode 占 KV 限制 Prefill batch。</li>
+     <li><b>KV Transfer 是真正难点</b>——KV bytes/token = 层数 × 2 × KV_heads × head_dim × 字节数；示例 320KB/token × 2050 ≈ 641MiB，50GB/s 下限仅 12.8ms，但真实交接 = KV 生成 + 元数据 + 传输 + 写入 + 状态确认 + Decode 启动六段之和。</li>
+     <li><b>传输与计算重叠（按层流水）</b>——理想是 Layer 0 KV 到达即开算；能否成立取决于 Connector / Worker / Backend / Cache 布局协作，任一环不支持则退化为全量传输后串行。</li>
+     <li><b>KV Affinity 路由</b>——同前缀请求黏同一 Decode 节点复用 Prefix Cache，但过度会造热点；路由代价 = 排队 + 传输 + 容量压力 − Prefix 命中收益。</li>
+     <li><b>故障恢复三策略</b>——重算（简单但长 Prompt 贵）/ 远端 KV 恢复（免重算但引入存储与版本问题）/ 复制（快但费带宽显存）；KV 是可重建状态，不追求数据库式强一致。</li>
+     <li><b>PD 分离非无条件划算</b>——判据：KV 传输时间 + 协调时间 &lt; 混部排队与调度干扰。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>KV Connector（控制面/数据面）</span><span>三层职责：语义/索引/传输</span><span>NIXL</span><span>LMCache</span><span>Mooncake</span><span>Prefix Cache 复用</span><span>分层 KV Cache</span><span>独立扩缩容</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 真正难点不在"分两个池"，而在 <b>KV Cache 的跨节点传输、查询、复用与恢复</b>。</p>
+     <p>② KV Cache 从本地状态变成分布式状态后，Serving 从单机调度问题演进为<b>集群状态管理问题</b>——从"本地执行系统"走向"分布式状态系统"的关键一步。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a09">09 硬件解耦</a> ｜ 下一篇 → <a href="#a10s">10+ 补充篇</a></span></div>
+  </article>
+
+  <article class="a-card" id="a10s">
+   <div class="a-head"><span class="chip c-rose">10+</span><h2>补充篇：KV 传输内容与异构关键约束</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="PD分离-传输内容与异构关键约束.html">📄 原文（HTML）</a></div>
+    <p class="pos">部署演进 · 第 10 章图解深化 ｜ P→D 到底传什么（7 项内容）、异构部署的 7 项关键约束</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· P→D 一次完整交接</small></h4>
+    <div class="chain">P 侧：Router 决策 <span class="ar">→</span> Prompt Forward 生成各层 K/V <span class="ar">→</span> 按 block 写入（布局 / dtype）<span class="ar">→</span> 链式哈希进 Prefix Cache <span class="ar">→</span> 备齐 7 项元数据 <span class="ar">→</span> 通道：KV Transfer（理想走 GPUDirect RDMA 直达，支持则按层流水）<span class="ar">→</span> D 侧：分配 + 布局/dtype 转换 <span class="ar">→</span> 写入重建 block table <span class="ar">→</span> 状态确认 <span class="ar">→</span> 接管 Decode</div></div>
+   <div class="a-sec"><h4>重难点 <small>· 异构部署 7 项约束（①②⑤ 需两侧同时满足）</small></h4>
+    <ol class="hard">
+     <li><b>① 布局与分页参数兼容（最核心）</b>——D 侧 Kernel 只认 block table，block_size 不一致则整张映射失效；641MiB 传过去也读不对。</li>
+     <li><b>② dtype 与量化格式互认</b>——同一量化名称在不同平台实现不同（scale 布局平台相关）；FP16↔FP8 在线转换多一趟读写；softmax 对 Key 误差指数敏感。</li>
+     <li><b>③ 传输路径不劣化</b>——一侧不支持 GPUDirect RDMA 就经 Host 中转 +2 次拷贝；带宽 50→25GB/s 时下限 12.8→25.6ms，直接吃掉 PD 分离省下的 TTFT。</li>
+     <li><b>④ 按层流水能否成立</b>——start_load_kv / wait_for_layer_load 接口需两侧平台都支持分层等待，任一侧不支持即断流退化串行。</li>
+     <li><b>⑤ Prefix Cache 跨节点复用前提</b>——哈希可复现（显式 PYTHONHASHSEED）+ extra_keys 一致 + 模型版本 / dtype / 布局复用边界成立，否则"少传"落空甚至错误复用。</li>
+     <li><b>⑥ 接收端内存分配与同步语义</b>——异构设备异步执行、错误可能延迟到同步点才暴露；须"写入-确认-开算"事务化防脏读。</li>
+     <li><b>⑦ 调度配比与故障恢复的全局约束</b>——P/D 配比、恢复策略需全局视角统筹，属于集群级而非单节点问题。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>7 项传输内容（KV Tensor / block table / token 数 / layer 信息 / dtype 布局 / req_id / 状态）</span><span>MLA latent Cache</span><span>链式哈希三要素</span><span>GPUDirect RDMA / Host 中转</span><span>KV 状态确认状态机</span><span>传输量级公式</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 量级结论：320KB/token × 2050 token ≈ <b>641MiB</b>；50GB/s 下 12.8ms 只是带宽下限，真实交接是六段链路之和。</p>
+     <p>② 对比口诀：<b>同构 PD 难点是"传得快"；异构 PD 难点是"对方认得"（布局 / dtype / 哈希 / 流水语义兼容）+ "路径不劣化"</b>；解法 = Platform 能力查询 + 启动期校验提前失败。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a10">10 PD 分离</a> ｜ 下一篇 → <a href="#a11">11 下一站</a></span></div>
+  </article>
+
+  <article class="a-card" id="a11">
+   <div class="a-head"><span class="chip c-blue">11</span><h2>Serving Infra 的下一站：从模型执行器到分布式智能操作系统</h2>
+    <div class="a-acts"><a href="#diagram">⤴ 返回架构图</a><a href="html/11-Serving Infra 的下一站：从模型执行器到分布式智能操作系统.html">📄 原文</a></div>
+    <p class="pos">部署演进 · 前瞻 ｜ Serving Infra 从"模型执行器"到"分布式智能操作系统"的演进方向</p></div>
+   <div class="a-sec"><h4>核心流程 <small>· 智能任务的生命周期 与 编译边界扩大</small></h4>
+    <div class="chain">带状态智能任务：接收请求 <span class="ar">→</span> Prefill <span class="ar">→</span> 生成部分结果 <span class="ar">→</span> 调用外部工具 <span class="ar">→</span> 等待返回 <span class="ar">→</span> 恢复上下文 <span class="ar">→</span> 继续生成<br>
+     编译边界：Kernel Compiler <span class="ar">→</span> Graph Compiler <span class="ar">→</span> Model Compiler <span class="ar">→</span> <b>Serving Plan Compiler</b><br>
+     未来分层：模型与编译层 <span class="ar">→</span> Serving Runtime <span class="ar">→</span> <b>Inference State Plane</b> <span class="ar">→</span> 分布式调度编排 <span class="ar">→</span> 硬件 / 数据中心</div></div>
+   <div class="a-sec"><h4>重难点</h4>
+    <ol class="hard">
+     <li><b>性能指标重新定义（Goodput）</b>——tokens/s 高但大量超时或 GPU 消耗过多不算高效；目标是在满足 SLO 前提下以更低成本完成更多有效任务。</li>
+     <li><b>Serving Plan Compiler</b>——输入模型结构 / 硬件拓扑 / SLO / 负载预测，输出算子、融合、布局、并行、Batch、Cache、通信、调度参数的完整执行计划；一个模型拥有多套计划，Runtime 按负载选择。</li>
+     <li><b>自动化并行是联合优化</b>——P* = argmin(C_compute + C_memory + C_communication) 且满足 TTFT/TPOT SLO；TP 降显存但增通信、PP 有气泡、DP 复制 Cache、EP 依赖 All-to-All、CP 增状态交换。</li>
+     <li><b>拓扑感知规划 vs PD 容量均衡</b>——前者解决 Worker 内部如何切分（需理解 NVLink / PCIe / NUMA / 故障域），后者解决集群 P/D 各部署多少——两个不同层次。</li>
+     <li><b>Inference State Plane（推理状态平面）</b>——KV Cache、Prefix Cache、Session、工具结果等统一为一等资源，需寻址 / 迁移 / 复制 / 版本 / 失效 / 恢复等能力；"传输还是重算"成为运行时决策。</li>
+     <li><b>Goodput 驱动调度与异构感知</b>——max(Goodput − α·Cost − β·SLO Violation − γ·Energy)；按硬件特性放置请求：大显存→长上下文、高算力→Prefill、高带宽→Decode、高网络带宽→KV Transfer。</li>
+    </ol></div>
+   <div class="a-sec"><h4>相关知识</h4>
+    <div class="know"><span>Goodput</span><span>Cache-aware Scheduling</span><span>请求迁移（请求+KV+Session+元数据）</span><span>Speculative Serving</span><span>故障恢复粒度六级</span><span>Expert-aware Routing</span><span>vLLM 的位置 = Runtime 层</span></div></div>
+   <div class="a-sec"><h4>关键结论</h4>
+    <div class="concl"><p>① 四个转变：<b>手工配置→自动执行计划、本地缓存→分布式状态平面、单体推理→多阶段分布式执行、GPU 利用率→Goodput/SLO/成本联合优化</b>。</p>
+     <p>② 核心问题从"如何在一张 GPU 上更快运行模型"变为"如何让计算、状态和调度协同，使智能系统持续、低成本、可恢复地完成任务"。</p></div></div>
+   <div class="a-foot"><a href="#diagram">⤴ 返回架构图</a><span>← 上一篇 <a href="#a10s">10+ 补充篇</a> ｜ 系列完结 · 回到 <a href="#top">顶部</a></span></div>
+  </article>
+
+ </section>
+</main>
+
+<footer class="sitefoot">LLM Serving 系列 · 13 篇文章的架构知识地图 ｜ 个人学习使用 · 笔记原文转载 ｜ 2026-10 整理</footer>
+
+<script>
+document.querySelectorAll('a[href^="#"]').forEach(function(a){
+ a.addEventListener('click', function(e){
+  var id = a.getAttribute('href').slice(1);
+  var t = document.getElementById(id);
+  if(!t) return;
+  e.preventDefault();
+  t.scrollIntoView({behavior:'smooth', block:'start'});
+  if(history.replaceState) history.replaceState(null,'','#'+id);
+  if(t.classList.contains('a-card')){
+   t.classList.remove('flash'); void t.offsetWidth; t.classList.add('flash');
+  }
+ });
+});
+</script>
+</body>
+</html>

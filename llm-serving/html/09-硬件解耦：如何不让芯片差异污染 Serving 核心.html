@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>09 硬件解耦：如何不让芯片差异污染 Serving 核心</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 09 硬件解耦：如何不让芯片差异污染 Serving 核心</div>
+<article>
+ <div class="ahead">
+  <span class="chip">09</span>
+  <h1>硬件解耦：如何不让芯片差异污染 Serving 核心</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 10 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（26 条）</summary><ol><li><a href="#1-一条设计原则硬件适配不能污染-serving-核心">1. 一条设计原则：硬件适配不能污染 Serving 核心</a></li><li><a href="#2-platform硬件能力的统一来源">2. Platform：硬件能力的统一来源</a><ol class="lv3"><li><a href="#21-current_platform-是如何出现的">2.1 current_platform 是如何出现的？</a></li></ol></li><li><a href="#3-platformattention-backend-与-kernel-backend-的真实关系">3. Platform、Attention Backend 与 Kernel Backend 的真实关系</a><ol class="lv3"><li><a href="#31-路径一attention-backend-选择">3.1 路径一：Attention Backend 选择</a></li><li><a href="#32-路径二直接导入平台-kernel">3.2 路径二：直接导入平台 Kernel</a></li><li><a href="#33-路径三平台直接提供通信和其他组件">3.3 路径三：平台直接提供通信和其他组件</a></li><li><a href="#34-为什么-attention-要单独做-selector">3.4 为什么 Attention 要单独做 Selector？</a></li></ol></li><li><a href="#4-out-of-tree插件架构把新硬件放到主仓库之外">4. Out-of-Tree插件架构：把新硬件放到主仓库之外</a></li><li><a href="#5-昇腾适配需要解决哪些问题">5. 昇腾适配需要解决哪些问题？</a><ol class="lv3"><li><a href="#51-平台识别与注册">5.1 平台识别与注册</a></li><li><a href="#52-worker-与设备生命周期">5.2 Worker 与设备生命周期</a></li><li><a href="#53-attention-backend">5.3 Attention Backend</a></li><li><a href="#54-kv-cache-与内存管理">5.4 KV Cache 与内存管理</a></li><li><a href="#55-基础算子与自定义-kernel">5.5 基础算子与自定义 Kernel</a></li><li><a href="#56-量化支持">5.6 量化支持</a></li><li><a href="#57-分布式通信与并行策略">5.7 分布式通信与并行策略</a></li></ol></li><li><a href="#6-oot-适配的边界不是主仓库完全不用改">6. OOT 适配的边界：不是“主仓库完全不用改”</a></li><li><a href="#7-一次请求在异构硬件上的执行路径">7. 一次请求在异构硬件上的执行路径</a></li><li><a href="#8-如何判断硬件适配是否真正做到了解耦">8. 如何判断硬件适配是否真正做到了解耦？</a><ol class="lv3"><li><a href="#81-检查一serving-核心是否出现设备判断">8.1 检查一：Serving 核心是否出现设备判断？</a></li><li><a href="#82-检查二平台能力是否可以被查询">8.2 检查二：平台能力是否可以被查询？</a></li><li><a href="#83-检查三不支持的配置是否能提前失败">8.3 检查三：不支持的配置是否能提前失败？</a></li><li><a href="#84-检查四插件是否能独立演进">8.4 检查四：插件是否能独立演进？</a></li><li><a href="#85-检查五是否只完成了能跑还是同时完成了跑得好">8.5 检查五：是否只完成了“能跑”，还是同时完成了“跑得好”？</a></li></ol></li><li><a href="#9-小结platform-是边界不是万能胶">9. 小结：Platform 是边界，不是万能胶</a></li></ol></details>
+<p>上一章讨论了模型适配：面对不断变化的模型结构，Serving 框架如何通过统一接口、模型注册和模块化执行路径，降低新模型接入成本。</p>
+<p>但模型只是变化来源之一。</p>
+<p>在真实部署环境中，硬件同样在快速变化。GPU 不再是唯一选择，AMD ROCm、华为昇腾 Ascend、Intel XPU、Google TPU 以及各种专用加速器，都在参与大模型推理基础设施的竞争。</p>
+<p>这就带来一个更棘手的问题：</p>
+<blockquote>
+<p><strong>如何让同一套 Serving 逻辑运行在不同芯片上，同时避免芯片差异渗透到 Scheduler、KV Cache 和请求生命周期管理之中？</strong></p>
+</blockquote>
+<p>vLLM 的答案不是在核心代码里堆积更多硬件分支，而是建立一套平台抽象、后端选择和插件扩展机制，把硬件差异尽可能隔离在系统边界之外。</p>
+<h2 id="1-一条设计原则硬件适配不能污染-serving-核心">1. 一条设计原则：硬件适配不能污染 Serving 核心</h2>
+<p>先看一个反例。</p>
+<p>假设 Scheduler 需要根据硬件特性决定是否允许某种调度策略，于是代码变成：</p>
+<pre><code>if is_cuda():    ...elif is_ascend():    ...elif is_rocm():    ...</code></pre>
+<p>KV Cache 管理器也出现类似判断：</p>
+<pre><code>if is_cuda():    allocate_cuda_blocks()elif is_ascend():    allocate_npu_blocks()</code></pre>
+<p>Attention、通信、量化和模型执行路径中也不断加入类似分支。</p>
+<p>一开始，这种方式看起来很直接。但随着硬件类型增加，问题会迅速暴露：</p>
+<ul>
+<li>调度逻辑开始依赖具体设备名称；</li>
+<li>KV Cache 管理器需要理解不同设备的内存模型；</li>
+<li>模型执行器被迫维护多套硬件分支；</li>
+<li>每加入一种芯片，都要修改多个核心模块；</li>
+<li>不同硬件分支之间逐渐产生行为差异；</li>
+<li>测试矩阵从“功能 × 模型”膨胀为“功能 × 模型 × 芯片”。</li>
+</ul>
+<p>最终，Serving 核心不再是一个与硬件无关的调度系统，而变成了各种硬件特殊情况的集合。</p>
+<p>因此，硬件适配首先是一条架构原则：</p>
+<blockquote>
+<p><strong>硬件适配不能污染上层 Serving 逻辑。</strong></p>
+</blockquote>
+<p>把这句话放回前面几章的语境里，会更容易理解。</p>
+<p>第四章的 Scheduler 关心的是：</p>
+<ul>
+<li>当前请求需要执行多少 token；</li>
+<li>当前 batch 还有多少计算预算；</li>
+<li>哪些请求应该继续 decode；</li>
+<li>哪些请求应该被抢占或延迟。</li>
+</ul>
+<p>第五章的 KV Cache Manager 关心的是：</p>
+<ul>
+<li>KV Cache 被划分成多少个 block；</li>
+<li>哪些 block 已经分配；</li>
+<li>哪些 block 可以复用；</li>
+<li>prefix cache 是否命中；</li>
+<li>显存不足时如何回收或换出。</li>
+</ul>
+<p>这些模块应该依赖的是抽象能力，而不是具体芯片：</p>
+<pre><code>Scheduler
+└── 只关心 token 预算、请求状态和执行资源KVCacheManager
+└── 只关心 block、容量、分配和回收Model Executor
+└── 只关心模型层如何执行硬件平台层
+└── 负责设备、算子、通信、数据类型和内存实现</code></pre>
+<p>理想的依赖关系如下：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094940913。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094940913.png</code></figcaption></figure></p>
+<p>上层只需要提出类似的问题：</p>
+<pre><code>当前设备是什么类型？支持哪些数据类型？支持 FP8 或其他量化格式吗？使用哪个 Attention Backend？集合通信由哪个实现负责？需要加载哪些平台扩展？</code></pre>
+<p>它不应该关心：</p>
+<pre><code>这是 NVIDIA GPU、AMD GPU，还是昇腾 NPU？底层使用 CUDA、HIP 还是 CANN？具体 Kernel 是哪个动态库？通信实现是 NCCL、RCCL 还是 HCCL？</code></pre>
+<p>这些问题应该由平台层回答。</p>
+<h2 id="2-platform硬件能力的统一来源">2. Platform：硬件能力的统一来源</h2>
+<p>在 vLLM 中，<code>Platform</code> 可以理解为硬件适配的“能力中心”。</p>
+<p>它并不是简单的设备名称包装，而是向上层提供一组相对稳定的能力查询接口，例如：</p>
+<ul>
+<li>设备类型和设备名称；</li>
+<li>当前设备的计算能力；</li>
+<li>支持的数据类型；</li>
+<li>支持的量化格式；</li>
+<li>默认通信后端；</li>
+<li>Attention Backend 选择；</li>
+<li>底层扩展导入；</li>
+<li>Device Communicator；</li>
+<li>平台级配置检查；</li>
+<li>平台相关的 Worker 或执行组件。</li>
+</ul>
+<p>从抽象上看，上层代码依赖的是这样的接口：</p>
+<div class="sourceCode" id="cb6"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb6-1"><a href="#cb6-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> Platform:    device_name: <span class="bu">str</span>    device_type: <span class="bu">str</span>    <span class="op">@</span>classmethod    <span class="kw">def</span> get_attn_backend_cls(cls, ...):        ...    <span class="op">@</span>classmethod    <span class="kw">def</span> import_kernels(cls):        ...    <span class="op">@</span>classmethod    <span class="kw">def</span> get_device_communicator_cls(cls):        ...    <span class="op">@</span>classmethod    <span class="kw">def</span> get_punica_wrapper(cls):        ...    <span class="op">@</span>classmethod    <span class="kw">def</span> check_and_update_config(cls, config):        ...</span></code></pre></div>
+<p>不同平台提供不同实现，但上层不需要知道这些实现的细节。</p>
+<p>可以把它理解为：</p>
+<pre><code>上层代码提出能力问题  
+↓Platform 提供平台事实  
+↓具体 Backend 或 Kernel 被选择</code></pre>
+<p>这里的关键不是“所有硬件都实现完全相同的代码”，而是：</p>
+<blockquote>
+<p><strong>所有硬件都通过相对稳定的抽象边界向 Serving 核心提供能力。</strong></p>
+</blockquote>
+<h3 id="21-current_platform-是如何出现的">2.1 <code>current_platform</code> 是如何出现的？</h3>
+<p>程序启动时，vLLM 需要先确定当前运行平台。这个过程通常涉及：</p>
+<ol type="1">
+<li>读取运行环境和设备配置；</li>
+<li>检测可用设备；</li>
+<li>加载内置平台或外部平台插件；</li>
+<li>选择与当前环境匹配的平台实现；</li>
+<li>将平台对象暴露为全局使用的 <code>current_platform</code>。</li>
+</ol>
+<p>因此，后续代码不需要到处重新判断设备类型，而是统一读取：</p>
+<div class="sourceCode" id="cb8"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="im">from</span> vllm.platforms <span class="im">import</span> current_platform</span></code></pre></div>
+<p>然后通过它获取设备能力。</p>
+<p>需要注意的是，实际初始化路径会随着 vLLM 版本、插件机制和部署方式变化。对于博客来说，更准确的表述是：</p>
+<blockquote>
+<p><strong><code>current_platform</code> 是运行时平台选择机制的统一出口。它背后可能来自内置平台，也可能来自通过插件机制注册的 Out-of-Tree 平台。</strong></p>
+</blockquote>
+<h2 id="3-platformattention-backend-与-kernel-backend-的真实关系">3. Platform、Attention Backend 与 Kernel Backend 的真实关系</h2>
+<p>很多人第一次阅读 vLLM 硬件适配代码时，会自然地形成一种“三层调用栈”：</p>
+<pre><code>Platform Backend  
+↓Attention Backend  
+↓Kernel Backend</code></pre>
+<p>这种理解在 Attention 局部路径上有一定合理性，但如果把它当成整个硬件适配体系的真实结构，就会产生误解。</p>
+<p>更准确的关系是：</p>
+<blockquote>
+<p><strong>Platform 是设备能力和运行时事实的来源；Attention Backend 是其中一个重要的动态选择器；大量其他 Kernel、通信组件和平台扩展则可以由 Platform 直接提供。</strong></p>
+</blockquote>
+<p>整体关系更接近下面这样：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094826570。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094826570.png</code></figcaption></figure></p>
+<h3 id="31-路径一attention-backend-选择">3.1 路径一：Attention Backend 选择</h3>
+<p>Attention 是 vLLM 中最重要的动态后端选择场景之一。</p>
+<p>典型入口可以抽象为：</p>
+<div class="sourceCode" id="cb10"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> get_attn_backend(    head_size,    dtype,    kv_cache_dtype,    use_mla,    sliding_window,    ...):    selector_config <span class="op">=</span> AttentionSelectorConfig(        head_size<span class="op">=</span>head_size,        dtype<span class="op">=</span>dtype,        kv_cache_dtype<span class="op">=</span>kv_cache_dtype,        use_mla<span class="op">=</span>use_mla,        sliding_window<span class="op">=</span>sliding_window,        ...    )    <span class="cf">return</span> current_platform.get_attn_backend_cls(        selector_config    )</span></code></pre></div>
+<p>平台在选择 Attention Backend 时，可能需要综合判断：</p>
+<ul>
+<li>设备类型；</li>
+<li>GPU Compute Capability 或 NPU 能力；</li>
+<li>head size；</li>
+<li>query 和 KV 的数据类型；</li>
+<li>KV Cache 的数据类型；</li>
+<li>是否使用 MLA；</li>
+<li>是否启用 sliding window；</li>
+<li>是否支持 prefix caching；</li>
+<li>是否支持 paged attention；</li>
+<li>prefill 和 decode 的执行模式；</li>
+<li>当前硬件是否存在对应 Kernel。</li>
+</ul>
+<p>最终得到的可能是：</p>
+<pre><code>FlashAttentionBackendFlashInferBackendTritonAttentionBackendAITER Attention BackendAscend / CANN Attention Backend</code></pre>
+<p>可以用一个简化后的伪代码表示：</p>
+<div class="sourceCode" id="cb12"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CudaPlatform(Platform):    <span class="op">@</span>classmethod    <span class="kw">def</span> get_attn_backend_cls(cls, config):        <span class="cf">if</span> supports_flashinfer(config):            <span class="cf">return</span> FlashInferBackend        <span class="cf">if</span> supports_flash_attention(config):            <span class="cf">return</span> FlashAttentionBackend        <span class="cf">return</span> TritonAttentionBackend</span></code></pre></div>
+<p>这并不意味着所有平台都必须把选择逻辑写成同样的形式。平台可以根据自己的能力返回合适的实现。</p>
+<h3 id="32-路径二直接导入平台-kernel">3.2 路径二：直接导入平台 Kernel</h3>
+<p>并不是所有底层算子都需要经过 Attention Backend。</p>
+<p>平台可能直接加载自己的 C++、CUDA、HIP 或 CANN 扩展：</p>
+<div class="sourceCode" id="cb13"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb13-1"><a href="#cb13-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CudaPlatform(Platform):    <span class="op">@</span>classmethod    <span class="kw">def</span> import_kernels(cls) <span class="op">-&gt;</span> <span class="va">None</span>:        <span class="im">import</span> vllm._C_stable_libtorch        <span class="im">import</span> vllm._moe_C_stable_libtorch        <span class="cf">with</span> contextlib.suppress(<span class="pp">ImportError</span>):            <span class="im">import</span> vllm._qutlass_C</span></code></pre></div>
+<p>这些扩展可能包含：</p>
+<ul>
+<li>MoE 相关算子；</li>
+<li>Quantization 相关算子；</li>
+<li>RMSNorm、RoPE 等基础算子；</li>
+<li>GEMM 或矩阵乘法优化；</li>
+<li>自定义通信算子；</li>
+<li>平台专用的运行时扩展。</li>
+</ul>
+<p>它们的加载不需要经过 Attention Backend。</p>
+<h3 id="33-路径三平台直接提供通信和其他组件">3.3 路径三：平台直接提供通信和其他组件</h3>
+<p>集合通信同样可能由平台直接决定：</p>
+<div class="sourceCode" id="cb14"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> CudaPlatform(Platform):    <span class="op">@</span>classmethod    <span class="kw">def</span> get_device_communicator_cls(cls) <span class="op">-&gt;</span> <span class="bu">str</span>:        <span class="cf">return</span> (            <span class="st">&quot;vllm.distributed.device_communicators.&quot;</span>            <span class="st">&quot;cuda_communicator.CudaCommunicator&quot;</span>        )</span></code></pre></div>
+<p>不同硬件平台可能分别对接：</p>
+<pre><code>NVIDIA GPU  → NCCLAMD GPU     → RCCL昇腾 NPU    → HCCLIntel XPU   → XCCL 或对应通信实现</code></pre>
+<p>LoRA、量化、内存管理以及平台特有的执行组件，也可能走类似的直接派发路径。</p>
+<p>因此，系统级的真实关系不是：</p>
+<pre><code>Platform → Attention Backend → 所有 Kernel</code></pre>
+<p>而是：</p>
+<pre><code>
+┌─ Attention Backend Selector                         │current_platform ────────┼─ Kernel Import                         │
+├─ Device Communicator                         │
+├─ Worker / Device Runtime                         │
+└─ Platform Configuration</code></pre>
+<h3 id="34-为什么-attention-要单独做-selector">3.4 为什么 Attention 要单独做 Selector？</h3>
+<p>Attention 之所以被单独抽象出来，不只是因为它名字特殊，而是因为它同时具备三个特点：</p>
+<ol type="1">
+<li><strong>计算量大</strong>：Attention 是推理性能的关键组成部分；</li>
+<li><strong>硬件敏感</strong>：不同设备对矩阵乘法、稀疏访问、KV Cache 读取的优化方式不同；</li>
+<li><strong>场景复杂</strong>：prefill、decode、paged KV Cache、MLA、不同 head size 和不同数据类型，都可能影响最优实现。</li>
+</ol>
+<p>因此，Attention 往往需要根据运行配置动态选择后端。</p>
+<p>例如，同一块 GPU 上：</p>
+<pre><code>某种 head size + FP16 + prefill    → FlashAttention某种 head size + FP8 KV Cache + decode    → FlashInfer特殊模型结构或不满足优化条件    → Triton 或通用实现</code></pre>
+<p>而 RMSNorm、RoPE 等算子，很多时候可以通过平台扩展直接绑定。它们也可能存在多个实现，但通常不需要像 Attention 一样根据大量运行时条件进行复杂选择。</p>
+<p>所以，Attention Selector 可以看作：</p>
+<blockquote>
+<p><strong>性能关键路径上的动态决策机制。</strong></p>
+</blockquote>
+<p>而 <code>import_kernels()</code> 更像是：</p>
+<blockquote>
+<p><strong>平台级实现的加载和绑定机制。</strong></p>
+</blockquote>
+<p>两者都属于硬件适配，但解决的问题不同。</p>
+<h2 id="4-out-of-tree插件架构把新硬件放到主仓库之外">4. Out-of-Tree插件架构：把新硬件放到主仓库之外</h2>
+<p>如果每接入一种硬件，都必须修改 vLLM 主仓库，那么硬件生态很容易受到两个问题限制：</p>
+<ul>
+<li>主仓库需要长期维护大量平台代码；</li>
+<li>硬件厂商无法独立发布适配版本。</li>
+</ul>
+<p>因此，vLLM 支持 Out-of-Tree，也就是 OOT 适配。</p>
+<p>OOT 的核心思想是：</p>
+<blockquote>
+<p><strong>主仓库提供稳定的扩展接口，第三方通过独立包实现具体平台。</strong></p>
+</blockquote>
+<p>以昇腾为例，适配包可以独立维护在 <code>vllm-ascend</code> 中，而不是把所有 CANN 相关代码直接放入 vLLM 主仓库。</p>
+<p>从架构上看：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094705359。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094705359.png</code></figcaption></figure></p>
+<p>主仓库和插件包之间大致是这样的分工：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">能力</th>
+<th style="text-align: left;">vLLM 主仓库提供</th>
+<th style="text-align: left;">Ascend 插件实现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">平台抽象</td>
+<td style="text-align: left;"><code>Platform</code> 接口和平台注册机制</td>
+<td style="text-align: left;"><code>AscendPlatform</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">模型接口</td>
+<td style="text-align: left;">标准模型执行接口</td>
+<td style="text-align: left;">尽量复用标准模型实现</td>
+</tr>
+<tr>
+<td style="text-align: left;">Attention</td>
+<td style="text-align: left;"><code>AttentionBackend</code> 抽象和选择入口</td>
+<td style="text-align: left;">CANN 或 Ascend 专用 Attention</td>
+</tr>
+<tr>
+<td style="text-align: left;">Worker</td>
+<td style="text-align: left;">Worker 基类和执行生命周期</td>
+<td style="text-align: left;">NPU 设备初始化、执行和内存管理</td>
+</tr>
+<tr>
+<td style="text-align: left;">Kernel</td>
+<td style="text-align: left;">通用算子接口、扩展加载约定</td>
+<td style="text-align: left;">CANN Custom Ops、Ascend Kernel</td>
+</tr>
+<tr>
+<td style="text-align: left;">通信</td>
+<td style="text-align: left;">分布式和 Device Communicator 抽象</td>
+<td style="text-align: left;">HCCL 等昇腾通信实现</td>
+</tr>
+<tr>
+<td style="text-align: left;">数据类型</td>
+<td style="text-align: left;">配置和能力查询接口</td>
+<td style="text-align: left;">NPU 支持的数据类型与限制</td>
+</tr>
+<tr>
+<td style="text-align: left;">量化</td>
+<td style="text-align: left;">量化配置和模型接口</td>
+<td style="text-align: left;">昇腾量化 Kernel 与转换逻辑</td>
+</tr>
+<tr>
+<td style="text-align: left;">内存</td>
+<td style="text-align: left;">KV Cache 抽象和缓存管理流程</td>
+<td style="text-align: left;">NPU 内存分配、显存/内存池适配</td>
+</tr>
+<tr>
+<td style="text-align: left;">配置检查</td>
+<td style="text-align: left;">通用配置校验入口</td>
+<td style="text-align: left;">NPU 特有约束和兼容性检查</td>
+</tr>
+</tbody>
+</table>
+<p>因此，“接入昇腾”绝不是简单地把：</p>
+<pre><code>if device == &quot;npu&quot;:    ...</code></pre>
+<p>添加到几个文件里。</p>
+<p>一个真正可用的昇腾后端，通常需要完成以下工作。</p>
+<h2 id="5-昇腾适配需要解决哪些问题">5. 昇腾适配需要解决哪些问题？</h2>
+<h3 id="51-平台识别与注册">5.1 平台识别与注册</h3>
+<p>首先，vLLM 必须能够识别当前设备，并将其映射到 Ascend 平台实现。</p>
+<p>平台对象需要提供基础信息，例如：</p>
+<div class="sourceCode" id="cb20"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AscendPlatform(Platform):    device_name <span class="op">=</span> <span class="st">&quot;npu&quot;</span>    device_type <span class="op">=</span> <span class="st">&quot;npu&quot;</span></span></code></pre></div>
+<p>但平台识别并不等于适配完成。它还需要解决：</p>
+<ul>
+<li>如何检测 NPU 是否可用；</li>
+<li>如何读取设备数量；</li>
+<li>如何设置当前设备；</li>
+<li>如何初始化 CANN 运行时；</li>
+<li>如何让分布式进程看到正确的设备；</li>
+<li>如何让 vLLM 在启动时加载正确的插件。</li>
+</ul>
+<p>启动阶段的逻辑可以抽象为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094621211。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094621211.png</code></figcaption></figure></p>
+<p>这里有一个重要的工程事实：</p>
+<blockquote>
+<p><strong>平台注册只解决“让系统看见这个硬件”，不代表底层算子、通信和模型执行都已经可用。</strong></p>
+</blockquote>
+<h3 id="52-worker-与设备生命周期">5.2 Worker 与设备生命周期</h3>
+<p>Serving 核心通常不会直接操作每一种硬件的底层运行时，而是通过 Worker 负责：</p>
+<ul>
+<li>设备初始化；</li>
+<li>设备上下文建立；</li>
+<li>模型加载；</li>
+<li>权重搬运；</li>
+<li>内存统计；</li>
+<li>执行请求；</li>
+<li>设备同步；</li>
+<li>进程退出时资源释放。</li>
+</ul>
+<p>昇腾 Worker 需要将这些流程映射到 NPU 和 CANN 的运行时模型中。</p>
+<p>例如：</p>
+<pre><code>通用 Worker 生命周期  
+↓NPU 设备选择  
+↓CANN Runtime 初始化  
+↓模型权重加载到 NPU  
+↓创建 NPU 内存池  
+↓加载 CANN / Custom Ops  
+↓执行模型  
+↓同步与错误处理</code></pre>
+<p>这里最容易被低估的是“错误处理”和“同步语义”。</p>
+<p>不同设备的执行可能是异步的，算子错误也可能延迟到同步点才暴露。因此，Worker 不能只完成基本的 <code>forward()</code> 调用，还需要适配：</p>
+<ul>
+<li>设备同步方式；</li>
+<li>异步执行异常；</li>
+<li>内存不足错误；</li>
+<li>设备复位或上下文失效；</li>
+<li>多进程下的设备隔离；</li>
+<li>进程退出时的资源清理。</li>
+</ul>
+<h3 id="53-attention-backend">5.3 Attention Backend</h3>
+<p>Attention 通常是昇腾适配中最关键的部分之一。</p>
+<p>一个 Ascend Attention Backend 至少需要回答：</p>
+<ul>
+<li>使用哪一种 CANN Attention 算子；</li>
+<li>输入张量布局是什么；</li>
+<li>Q、K、V 的数据类型是什么；</li>
+<li>KV Cache 的布局如何组织；</li>
+<li>如何支持 paged KV Cache；</li>
+<li>prefill 和 decode 是否使用不同 Kernel；</li>
+<li>是否支持 sliding window；</li>
+<li>是否支持 MLA 或其他特殊 Attention 结构；</li>
+<li>不同 head size 是否都能运行；</li>
+<li>不支持的配置如何回退。</li>
+</ul>
+<p>抽象来看，调用路径可以是：</p>
+<pre><code>Attention Layer  
+↓AttentionBackend.forward()  
+↓Ascend Attention Backend  
+↓CANN / Custom Attention Operator  
+↓NPU Kernel</code></pre>
+<p>一个简化的后端结构可能如下：</p>
+<div class="sourceCode" id="cb23"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb23-1"><a href="#cb23-1" aria-hidden="true" tabindex="-1"></a><span class="kw">class</span> AscendAttentionBackend(AttentionBackend):    <span class="op">@</span>staticmethod    <span class="kw">def</span> get_impl_cls():        <span class="cf">return</span> AscendAttentionImplclass AscendAttentionImpl:    <span class="kw">def</span> forward(        <span class="va">self</span>,        query,        key,        value,        kv_cache,        attn_metadata,    ):        <span class="co"># 根据 prefill/decode、KV Cache 布局等条件        # 调用对应的 CANN 或自定义算子        return ascend_attention_op(            query=query,            key=key,            value=value,            kv_cache=kv_cache,            metadata=attn_metadata,        )</span></span></code></pre></div>
+<p>真正的实现通常还需要处理张量布局转换、元数据构造和不同执行阶段的分派。</p>
+<p>尤其要注意，Attention Backend 并不是只实现一个数学公式。它必须适配 vLLM 的运行时语义：</p>
+<pre><code>请求调度结果  
+↓Attention Metadata  
+↓Block Table / KV Cache 位置  
+↓Prefill 或 Decode  
+↓设备专用 Attention Kernel</code></pre>
+<p>如果平台只实现了一个能够计算 Attention 的算子，但不能正确理解 vLLM 的 KV Cache block 布局，那么它仍然不能作为完整的 vLLM Attention Backend 使用。</p>
+<h3 id="54-kv-cache-与内存管理">5.4 KV Cache 与内存管理</h3>
+<p>vLLM 的 KV Cache 管理器通常应该保持平台无关。它负责的是逻辑 block：</p>
+<pre><code>逻辑层：block 0、block 1、block 2……</code></pre>
+<p>但这些 block 最终如何落到 NPU 内存上，则需要平台和 Worker 共同完成。</p>
+<p>昇腾适配需要处理：</p>
+<ul>
+<li>NPU 内存容量查询；</li>
+<li>KV Cache block 大小计算；</li>
+<li>Cache Tensor 的创建；</li>
+<li>Cache Tensor 的数据类型；</li>
+<li>Cache Tensor 的布局；</li>
+<li>block table 到设备 Tensor 的映射；</li>
+<li>内存池或缓存分配器；</li>
+<li>多卡场景下的内存隔离。</li>
+</ul>
+<p>理想的分层是：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094555674。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094555674.png</code></figcaption></figure></p>
+<p>关键点在于：</p>
+<blockquote>
+<p><strong>KV Cache Manager 不应该知道 Ascend 的内存 API；Ascend Worker 也不应该重新实现一套 KV Cache 调度逻辑。</strong></p>
+</blockquote>
+<p>如果这两个层次混在一起，未来接入另一种 NPU 时，就会再次出现核心逻辑复制。</p>
+<h3 id="55-基础算子与自定义-kernel">5.5 基础算子与自定义 Kernel</h3>
+<p>完整的模型执行不仅包含 Attention，还包括大量基础算子：</p>
+<ul>
+<li>RMSNorm；</li>
+<li>LayerNorm；</li>
+<li>RoPE；</li>
+<li>SiLU、GELU 等激活函数；</li>
+<li>Linear / GEMM；</li>
+<li>Quantization；</li>
+<li>MoE Router；</li>
+<li>Top-k；</li>
+<li>Expert 执行；</li>
+<li>Logits 计算；</li>
+<li>Sampling 前后的数据处理。</li>
+</ul>
+<p>这些算子可能来自：</p>
+<ol type="1">
+<li>CANN 已有算子；</li>
+<li>PyTorch NPU 算子；</li>
+<li>vLLM 通用实现；</li>
+<li>Ascend Custom Operator；</li>
+<li>针对特定模型或数据类型优化的专用 Kernel。</li>
+</ol>
+<p>适配时不能只追求“能运行”，还需要确认：</p>
+<ul>
+<li>算子是否支持目标数据类型；</li>
+<li>输入输出布局是否一致；</li>
+<li>是否产生隐式数据类型转换；</li>
+<li>是否存在 CPU 回退；</li>
+<li>是否引入不必要的设备同步；</li>
+<li>是否支持动态 shape；</li>
+<li>是否适合 decode 阶段的小 batch 场景。</li>
+</ul>
+<p>例如，一个算子即使功能正确，但每次执行都触发设备同步，也可能严重拖慢 token 生成速度。</p>
+<p>因此，算子适配需要同时验证：</p>
+<pre><code>数值正确性    +形状正确性    +设备放置正确性    +异步执行正确性    +性能可接受</code></pre>
+<h3 id="56-量化支持">5.6 量化支持</h3>
+<p>量化是硬件适配中非常容易产生差异的部分。</p>
+<p>同一种量化名称，在不同硬件平台上可能对应不同实现：</p>
+<pre><code>权重存储格式激活量化格式缩放因子布局反量化位置矩阵乘法 KernelKV Cache 数据类型</code></pre>
+<p>因此，昇腾平台需要明确支持哪些量化方式，以及每一种量化方式对应什么实现。</p>
+<p>平台层可以提供能力查询：</p>
+<div class="sourceCode" id="cb28"><pre class="sourceCode python"><code class="sourceCode python"><span id="cb28-1"><a href="#cb28-1" aria-hidden="true" tabindex="-1"></a><span class="at">@classmethoddef</span> get_supported_quantization(cls):    <span class="cf">return</span> {        <span class="st">&quot;w8a8&quot;</span>,        <span class="st">&quot;w8a16&quot;</span>,        <span class="co"># 具体能力取决于硬件、CANN 和插件版本    }</span></span></code></pre></div>
+<p>然后在模型加载或配置检查阶段提前拒绝不支持的组合，而不是等到运行中才失败：</p>
+<pre><code>模型要求：某种量化格式  
+↓平台能力检查  
+↓支持 → 选择对应 Kernel不支持 → 明确报错或选择兼容路径</code></pre>
+<p>这也是硬件抽象的重要价值：</p>
+<blockquote>
+<p><strong>把硬件限制变成可查询、可验证的能力，而不是隐藏在深层 Kernel 错误中。</strong></p>
+</blockquote>
+<h3 id="57-分布式通信与并行策略">5.7 分布式通信与并行策略</h3>
+<p>单卡推理只是硬件适配的一部分。大模型部署经常需要：</p>
+<ul>
+<li>Tensor Parallel；</li>
+<li>Pipeline Parallel；</li>
+<li>Data Parallel；</li>
+<li>Expert Parallel；</li>
+<li>多进程多卡执行；</li>
+<li>节点间通信。</li>
+</ul>
+<p>在 NVIDIA 环境中，常见通信组件是 NCCL；在昇腾环境中，则需要对接 HCCL 或相应的通信实现。</p>
+<p>昇腾插件需要处理：</p>
+<ul>
+<li>通信后端初始化；</li>
+<li>rank 和 world size；</li>
+<li>NPU 卡号与进程绑定；</li>
+<li>集合通信算子；</li>
+<li>通信拓扑；</li>
+<li>多机环境变量；</li>
+<li>通信异常和超时；</li>
+<li>Tensor Parallel 所需的 AllReduce、AllGather、ReduceScatter 等操作。</li>
+</ul>
+<p>逻辑上，Serving 核心只需要表达：</p>
+<pre><code>communicator.all_reduce(tensor)</code></pre>
+<p>而具体实现由平台提供：</p>
+<pre><code>CudaPlatform  → CudaCommunicator → NCCLAscendPlatform → AscendCommunicator → HCCL</code></pre>
+<p>如果通信层没有正确适配，模型可能单卡正常、多卡却出现：</p>
+<ul>
+<li>初始化失败；</li>
+<li>rank 卡死；</li>
+<li>输出不一致；</li>
+<li>通信性能异常；</li>
+<li>进程无法正常退出。</li>
+</ul>
+<p>所以，硬件适配的验证范围必须覆盖单卡和多卡。</p>
+<h2 id="6-oot-适配的边界不是主仓库完全不用改">6. OOT 适配的边界：不是“主仓库完全不用改”</h2>
+<p>“Out-of-Tree”经常被简化成一句话：</p>
+<blockquote>
+<p>安装插件就可以支持新硬件，主仓库一行代码都不用改。</p>
+</blockquote>
+<p>这句话表达了 OOT 的目标，但从工程角度看需要更谨慎。</p>
+<p>OOT 能否做到真正独立，取决于主仓库是否已经提供足够稳定的扩展点，包括：</p>
+<ul>
+<li>Platform 接口；</li>
+<li>平台注册机制；</li>
+<li>Attention Backend 接口；</li>
+<li>Worker 基类；</li>
+<li>Device Communicator 接口；</li>
+<li>Kernel 导入约定；</li>
+<li>配置检查入口；</li>
+<li>模型执行接口；</li>
+<li>KV Cache 和内存管理边界。</li>
+</ul>
+<p>如果某项能力还没有抽象出来，插件就可能需要：</p>
+<ul>
+<li>提交主仓库补丁；</li>
+<li>扩展新的注册点；</li>
+<li>临时使用兼容层；</li>
+<li>等待上游版本提供接口；</li>
+<li>针对不同 vLLM 版本维护不同分支。</li>
+</ul>
+<p>因此，更准确的表述是：</p>
+<blockquote>
+<p><strong>OOT 把硬件实现从主仓库中隔离出来，但它仍然依赖主仓库提供稳定的扩展契约。</strong></p>
+</blockquote>
+<p>这也是为什么平台适配不只是“写一个 <code>AscendPlatform</code> 类”。它还需要持续跟踪：</p>
+<ul>
+<li>vLLM 内部接口变化；</li>
+<li>Attention Metadata 变化；</li>
+<li>Worker 生命周期变化；</li>
+<li>KV Cache 布局变化；</li>
+<li>分布式接口变化；</li>
+<li>PyTorch 和 CANN 版本兼容性；</li>
+<li>不同硬件型号的能力差异。</li>
+</ul>
+<p>一个成熟的 OOT 插件，实际上是一个独立的适配层和发行生态。</p>
+<h2 id="7-一次请求在异构硬件上的执行路径">7. 一次请求在异构硬件上的执行路径</h2>
+<p>把前面的模块组合起来，可以得到一个更完整的请求执行路径：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094526588。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094526588.png</code></figcaption></figure></p>
+<p>在这条路径中：</p>
+<ul>
+<li>API 层不关心设备；</li>
+<li>Engine 不关心设备；</li>
+<li>Scheduler 不关心设备；</li>
+<li>KV Cache Manager 不关心设备；</li>
+<li>Worker 负责设备生命周期；</li>
+<li>Attention Backend 负责关键 Attention 实现；</li>
+<li>Platform 负责能力查询、扩展加载和平台组件选择。</li>
+</ul>
+<p>这就是硬件解耦真正想要达到的效果：</p>
+<blockquote>
+<p><strong>上层流程保持稳定，底层实现可以替换。</strong></p>
+</blockquote>
+<h2 id="8-如何判断硬件适配是否真正做到了解耦">8. 如何判断硬件适配是否真正做到了解耦？</h2>
+<p>可以用下面几个问题进行检查。</p>
+<h3 id="81-检查一serving-核心是否出现设备判断">8.1 检查一：Serving 核心是否出现设备判断？</h3>
+<p>重点搜索：</p>
+<pre><code>is_cuda()is_ascend()is_rocm()device.type == ...</code></pre>
+<p>如果这些判断大量出现在 Scheduler、请求状态机和 KV Cache 逻辑中，说明硬件边界可能已经被突破。</p>
+<h3 id="82-检查二平台能力是否可以被查询">8.2 检查二：平台能力是否可以被查询？</h3>
+<p>例如：</p>
+<pre class="wide"><code>current_platform.get_attn_backend_cls(...)current_platform.get_device_communicator_cls()current_platform.import_kernels()current_platform.check_and_update_config(...)</code></pre>
+<p>如果上层必须自己判断“这个芯片是否支持某算子”，说明能力抽象还不够完整。</p>
+<h3 id="83-检查三不支持的配置是否能提前失败">8.3 检查三：不支持的配置是否能提前失败？</h3>
+<p>理想情况是：</p>
+<pre><code>启动阶段发现不支持    ↓给出明确错误信息</code></pre>
+<p>而不是：</p>
+<pre><code>服务启动成功    ↓请求执行到某个深层 Kernel 时崩溃</code></pre>
+<h3 id="84-检查四插件是否能独立演进">8.4 检查四：插件是否能独立演进？</h3>
+<p>一个好的 OOT 适配应该能够：</p>
+<ul>
+<li>独立发布；</li>
+<li>独立测试；</li>
+<li>独立适配硬件驱动和算子库版本；</li>
+<li>尽量减少对主仓库的侵入；</li>
+<li>在主仓库升级时有清晰的兼容边界。</li>
+</ul>
+<h3 id="85-检查五是否只完成了能跑还是同时完成了跑得好">8.5 检查五：是否只完成了“能跑”，还是同时完成了“跑得好”？</h3>
+<p>硬件适配至少要验证：</p>
+<pre><code>功能正确
+数值正确
+数据类型正确
+KV Cache 正确
+多卡通信正确
+性能达到预期
+异常处理可用</code></pre>
+<p>能在 NPU 上返回结果，只能说明适配链路打通了；能在真实模型、真实 batch 和真实上下文长度下稳定达到目标吞吐，才算完成了工程适配。</p>
+<h2 id="9-小结platform-是边界不是万能胶">9. 小结：Platform 是边界，不是万能胶</h2>
+<p>这一章最重要的结论可以概括为三句话。</p>
+<p>第一：</p>
+<blockquote>
+<p><strong>Serving 核心应该依赖抽象能力，而不是依赖具体芯片。</strong></p>
+</blockquote>
+<p>第二：</p>
+<blockquote>
+<p><strong>Platform 是硬件能力中心，但不是所有底层组件的唯一调用父类。</strong></p>
+</blockquote>
+<p>Attention Backend、Kernel、通信组件、Worker 和平台扩展，都可能从 Platform 获取能力或被 Platform 直接派发。</p>
+<p>第三：</p>
+<blockquote>
+<p><strong>Out-of-Tree 让硬件适配可以独立演进，但前提是主仓库提供稳定的扩展契约。</strong></p>
+</blockquote>
+<p>因此，vLLM 的硬件解耦并不是简单地增加几个平台类，而是建立了多层边界：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094441495。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094441495.png</code></figcaption></figure></p>
+<p>最终，硬件差异应该停留在最底层：</p>
+<pre><code>芯片差异  ↓运行时差异  ↓平台实现差异  ↓Backend / Worker / Kernel 差异  ↓Serving 核心保持稳定</code></pre>
+<p>这正是一个高性能推理框架面对异构硬件时最重要的架构能力：</p>
+<blockquote>
+<p><strong>让底层硬件快速变化，让上层 Serving 逻辑尽量不变。</strong></p>
+</blockquote>
+
+</article>
+<div class="pnav">
+ <span><a href="08-模型适配：如何跟上变化极快的模型世界.html">← 上一篇 08</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><a href="10-PD 分离：从资源混部走向计算解耦.html">下一篇 10 →</a></span>
+</div>
+</body>
+</html>

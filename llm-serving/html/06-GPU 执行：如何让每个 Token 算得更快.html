@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 GPU 执行：如何让每个 Token 算得更快</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 06 GPU 执行：如何让每个 Token 算得更快</div>
+<article>
+ <div class="ahead">
+  <span class="chip">06</span>
+  <h1>GPU 执行：如何让每个 Token 算得更快</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 6 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（16 条）</summary><ol><li><a href="#1-gpu-为什么在空转-kernel-launch-与-cuda-graph">1. GPU 为什么在空转？—— Kernel Launch 与 CUDA Graph</a><ol class="lv3"><li><a href="#11-痛点kernel-launch-overhead">1.1 痛点：Kernel Launch Overhead</a></li><li><a href="#12-cuda-graph静态执行图捕获与重放">1.2 CUDA Graph：静态执行图捕获与重放</a></li></ol></li><li><a href="#2-数据为什么搬不动-压缩-hbm-流量">2. 数据为什么搬不动？—— 压缩 HBM 流量</a><ol class="lv3"><li><a href="#21-flashattention">2.1 FlashAttention</a></li><li><a href="#22-kernel-fusion">2.2 Kernel Fusion</a></li><li><a href="#23-小结">2.3 小结</a></li></ol></li><li><a href="#3-能不能少搬几个字节-低精度推理">3. 能不能少搬几个字节？—— 低精度推理</a><ol class="lv3"><li><a href="#31-推理量化的对象收益与代价">3.1 推理量化的对象、收益与代价</a></li><li><a href="#32-权重量化方法">3.2 权重量化方法</a></li><li><a href="#33-fp8-推理">3.3 FP8 推理</a></li><li><a href="#34-混合精度组合与性能评测">3.4 混合精度组合与性能评测</a></li></ol></li><li><a href="#4-能不能少跑几轮模型-投机解码">4. 能不能少跑几轮模型？—— 投机解码</a><ol class="lv3"><li><a href="#41-decode-的根本瓶颈">4.1 Decode 的根本瓶颈</a></li><li><a href="#42-speculative-decoding-基本原理">4.2 Speculative Decoding 基本原理</a></li><li><a href="#43-工程实现与核心算法schedulerkv-cache-与-拒绝采样">4.3 工程实现与核心算法：Scheduler、KV Cache 与 拒绝采样</a></li></ol></li></ol></details>
+<p>这一章的问题是：<strong>这些已经确定要算的 token，怎么算得更快。</strong></p>
+<p>Decode 偏 memory-bound、Prefill 偏 compute-bound，但落到 GPU 上，浪费其实只有四种形态：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">浪费形态</th>
+<th style="text-align: left;">症状</th>
+<th style="text-align: left;">对策</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">GPU 在<strong>等 CPU 发指令</strong></td>
+<td style="text-align: left;">kernel 之间有气泡</td>
+<td style="text-align: left;">CUDA Graph</td>
+</tr>
+<tr>
+<td style="text-align: left;">GPU 在<strong>等 HBM 送数据</strong></td>
+<td style="text-align: left;">算力闲置、访存打满</td>
+<td style="text-align: left;">FlashAttention、算子融合</td>
+</tr>
+<tr>
+<td style="text-align: left;">搬的<strong>每个数太胖</strong></td>
+<td style="text-align: left;">带宽被低信息密度的数据占满</td>
+<td style="text-align: left;">FP8 / INT8 / INT4 量化</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>轮次本身太多</strong></td>
+<td style="text-align: left;">每轮只产出 1 个 token</td>
+<td style="text-align: left;">投机解码</td>
+</tr>
+</tbody>
+</table>
+<p><strong>回到我们的例子</strong>（Llama-3-70B、8×H100、TP=8）：每张卡持有 17.6 GB 权重，H100 HBM 带宽 3.35 TB/s，于是<strong>一次 decode 的权重读取下界约 5.3 ms</strong>；加上 KV 读取、80 层 × 2 次 All-Reduce 和 kernel 开销，实测一步大约在 10 ms 量级。</p>
+<p>那么这个请求的账就清楚了：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">环节</th>
+<th style="text-align: left;">估算</th>
+<th style="text-align: left;">占比</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Prefill 2050 token</td>
+<td style="text-align: left;">≈ 92 ms（8×H100 稠密算力 7.9 PFLOPS，按 40% MFU 估）</td>
+<td style="text-align: left;">3%</td>
+</tr>
+<tr>
+<td style="text-align: left;">Decode 300 步</td>
+<td style="text-align: left;">300 × 10 ms ≈ <strong>3000 ms</strong></td>
+<td style="text-align: left;"><strong>97%</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">E2E</td>
+<td style="text-align: left;">≈ 3.1 s</td>
+<td style="text-align: left;"></td>
+</tr>
+</tbody>
+</table>
+<p><strong>看清楚这个 3% vs 97%</strong>：TTFT 只有 92 ms，而 97% 的时间花在那 300 次逐 token 的 decode 上。这解释了为什么绝大多数优化都是针对 Decode 侧的优化——Prefill 再快一倍，端到端也只省 3%。</p>
+<h2 id="1-gpu-为什么在空转-kernel-launch-与-cuda-graph">1. GPU 为什么在空转？—— Kernel Launch 与 CUDA Graph</h2>
+<p>第一种浪费最反直觉：<strong>GPU 并不慢，它只是在排队等 CPU 告诉它下一步做什么。</strong> 这个问题在 Prefill 阶段几乎看不见（单个 kernel 算得久，提交开销被淹没），却会在 Decode 阶段被放大——因为 Decode 每步的计算量太小了。</p>
+<h3 id="11-痛点kernel-launch-overhead">1.1 痛点：Kernel Launch Overhead</h3>
+<p>在 Decode 阶段，每步模型 Forward 要启动<strong>数百到上千个</strong> CUDA Kernel，而每个 Kernel 的实际 GPU 计算时间可能只有几十微秒。数量之所以这么多，是因为它是<strong>逐层累乘</strong>的：以 80 层的 Llama-3-70B 为例，单层就有 RMSNorm ×2、QKV Proj、RoPE、Attention、O Proj、MLP 的三个 GEMM 与激活，TP=8 下还要再加 2 次 All-Reduce——十几个 kernel × 80 层，一步下来轻松上千。32 层的 7B 也在数百这个量级。</p>
+<p>这里要先破除一个常见的误解：<strong>kernel launch 本身是异步的，CPU 提交完就返回，并不会傻等 GPU 算完。</strong> 正常情况下 CPU 会一路往前提交，把 GPU 的任务队列填满，提交开销完全隐藏在 GPU 执行时间背后。所以真正的成立条件只有一个：</p>
+<blockquote>
+<p><strong>当单个 kernel 的 GPU 执行时间 &lt; CPU 提交它所需的时间时，GPU 就会追上 CPU，队列被抽干，开始出现气泡。</strong></p>
+</blockquote>
+<p>这就解释了为什么 CUDA Graph 基本只对 Decode 有意义：Prefill 的 kernel 动辄跑几百微秒，CPU 那点提交开销（现代 CUDA 通常 2–5 μs 量级）根本追不上；而 Decode 阶段充斥着大量只需要 1.5μs 的细碎 Kernel，几十个这样的小 Kernel 排下来，CPU 异步发射的速度就成了拖后腿的那一方。</p>
+<p>下图画的正是这种队列被抽干、算力不饱和的最坏情形（Launch-Bound 状态）——注意它不是常态，而是 Decode 小 kernel 场景下才会退化成的样子：</p>
+<pre class="wider"><code>┌───────────────── 无 CUDA Graph: Decode 阶段的 Launch-Bound 气泡 ──────────────────┐│                                                                                   ││  CPU (Host Thread):                                                               ││  ───[Launch K1]───[Launch K2]───[Launch K3]───[Launch K4]─── ... (全力发射)        ││        4μs           4μs           4μs           4μs                              ││         │             │             │             │                               ││  
+▼ (命令入队)  ▼  
+▼  
+▼                               ││  GPU (Hardware):                                                                  ││  ───[ Kernel 1 ]─[气泡]─[ Kernel 2 ]─[气泡]─[ Kernel 3 ]─[气泡]─ ...              ││        1.5μs      2.5μs    1.5μs      2.5μs    1.5μs      2.5μs                   ││                                                                                   ││  【现象剖析】：                                                                   ││  1. 时刻 0，CPU 开始提交 K1。                                                      ││  2. 时刻 4，CPU 提交完 K1 并「立刻」开始提交 K2。同一时间，GPU 拿到 K1 开始执行。          ││  3. 时刻 5.5，GPU 仅用 1.5μs 就把 K1 算完了！此时 GPU 检查队列，发现 K2 还没提交完。      ││  4. 结果：GPU 只能被迫原地熄火，陷入 2.5μs 的「空闲气泡」，直到时刻 8 CPU 提交完 K2。      ││                                                                                   ││  【开销占比】：                                                                   ││  若一步包含 400 个小 Kernel，CPU 耗时 = 400 × 4μs = 1600μs (总发射耗时)               ││  因为 GPU 速度快于 CPU，整个流水线被 CPU 强行拉长。最终总耗时将由 CPU 侧决定：             ││  总执行时间 ≈ 1600μs。其中 GPU 真正干活 600μs (37.5%)，卡死在气泡中 1000μs     (62.5%)。
+│└───────────────────────────────────────────────────────────────────────────────────┘</code></pre>
+<h3 id="12-cuda-graph静态执行图捕获与重放">1.2 CUDA Graph：静态执行图捕获与重放</h3>
+<p>为了消灭上述图中高达 62.5% 的恐怖气泡，CUDA Graph 改变了游戏规则。它在模型初始化或第一轮时将一系列 Kernel Launch 录制成一个"计算图"，之后用一次 Launch 重放整个图：</p>
+<pre class="wider"><code>┌───────── CUDA Graph: 一次 Launch 重放整个 Decode 步 ─────────────────┐│                                                                       ││  Capture 阶段 (启动时一次性完成):                                       ││  ─[record start]─[kernel₁]─[kernel₂]─...─[kernelₙ]─[record end]─   ││  → 得到 CUDAGraph 对象, 记录了全部 kernel 及其参数地址                  ││                                                                       ││  Replay 阶段 (每步推理):                                               ││  CPU: ──[replay: 1次launch, ~10μs]────────────────────────────────   ││  GPU: ──[kernel₁][kernel₂][kernel₃]...[kernelₙ]──  (无 gap!)         ││         连续执行，kernel 之间无 launch 等待                             ││                                                                       ││  总执行 = 10μs(1次launch) + ~8000μs(compute) = 8010μs               ││  vs 上面完全暴露时的 10000μs → 上界省 20%                              ││  实测通常在 5%~15%（部分提交开销本来就被隐藏了）                        ││                                                                       ││  约束:                                                                 ││  · 图中 kernel 的形状必须固定 → 需要对不同 Batch Size 预捕获           ││  · 内存地址必须固定 → 通过 placeholder tensor 复用                     ││  · 不支持动态控制流 → Decode (固定模式) 适用, Prefill (可变) 不适用     
+│└───────────────────────────────────────────────────────────────────────┘</code></pre>
+<p>捕获与重放由 <code>CudaGraphManager</code>（<code>vllm/v1/worker/gpu/cudagraph_utils.py</code>）负责，而"用哪种模式"由配置枚举 <code>CUDAGraphMode</code>（<code>vllm/config/compilation.py</code>）描述：</p>
+<div class="sourceCode" id="cb3"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># vllm/config/compilation.pyclass CUDAGraphMode(enum.Enum):    NONE = 0                        # 全程 Eager    PIECEWISE = 1                   # 分段录制（处理动态部分）    FULL = 2                        # 完整模型 Forward 录制为一个大图    FULL_DECODE_ONLY = (FULL, NONE)       # decode 走 FULL, mixed batch 走 Eager    FULL_AND_PIECEWISE = (FULL, PIECEWISE)  # decode 走 FULL, mixed batch 走 PIECEWISE</span></span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">模式名称</th>
+<th style="text-align: left;">技术机制与核心策略</th>
+<th style="text-align: left;">性能表现（Decode / Mixed Batch）</th>
+<th style="text-align: left;">显存开销</th>
+<th style="text-align: left;">工业界应用现状</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">NONE</td>
+<td style="text-align: left;">全程 Eager 模式 CPU 实时解析并逐个发射 CUDA Kernel。</td>
+<td style="text-align: left;">差（CPU发射瓶颈，气泡多） 一般（Prefill 可掩盖部分延迟）</td>
+<td style="text-align: left;">无</td>
+<td style="text-align: left;">已淘汰 / 仅调试 仅用于底层算子开发调试或多模态超大输入排错。</td>
+</tr>
+<tr>
+<td style="text-align: left;">PIECEWISE</td>
+<td style="text-align: left;">分段录制模式 固定形状层录为小图，动态算子（如Attention）走 Eager。</td>
+<td style="text-align: left;">良好（消灭大部分非 Attention 层气泡） 良好（动态算子外置，天然兼容混批）</td>
+<td style="text-align: left;">中等</td>
+<td style="text-align: left;">自研/定制框架 多用于模型包含非标准、无法完整录图的自定义算子场景。</td>
+</tr>
+<tr>
+<td style="text-align: left;">FULL</td>
+<td style="text-align: left;">完整模型单图录制 Forward 整体录制为单个无法拆分的超级宏 Kernel。</td>
+<td style="text-align: left;">极致（消除 100% 气泡，达硬件极限） 无法运行（形状一变立即崩溃）</td>
+<td style="text-align: left;">低至中等</td>
+<td style="text-align: left;">离线批处理与跑分 用于离线大批量固定格式处理（如Embedding提取）与静态 BenchMark。</td>
+</tr>
+<tr>
+<td style="text-align: left;">FULL_DECODE_ONLY</td>
+<td style="text-align: left;">双轨动态切换 纯 Decode 走 FULL 图；混入 Prefill 自动降级至 NONE（Eager）。</td>
+<td style="text-align: left;">极致（纯生成阶段拿满无气泡性能） 一般（Prefill 虽走 Eager 但受图影响小）</td>
+<td style="text-align: left;">中等（需针对常用 BS 做多桶捕获）</td>
+<td style="text-align: left;">商业推理引擎首选（如 vLLM / TRT-LLM） 工业界最主流的线上部署策略，兼顾极高吞吐与 Continuous Batching 稳定性。</td>
+</tr>
+<tr>
+<td style="text-align: left;">FULL_AND_PIECEWISE</td>
+<td style="text-align: left;">混合双轨优化 纯 Decode 走 FULL 大图；混入 Prefill 切换至 PIECEWISE 分段图。</td>
+<td style="text-align: left;">极致（纯生成阶段性能达到硬件极限） 优秀（混批下固定层依然享受图加速）</td>
+<td style="text-align: left;">高（需常驻多套不同形态的多桶图）</td>
+<td style="text-align: left;">大厂尖端自研内核 属于头部大厂魔改推理框架的进阶方案，针对极高并发、追求极致长尾延迟（P99）的终极生产环境。</td>
+</tr>
+</tbody>
+</table>
+<p>从当前工业界的最新演进来看，随着 PD 分离架构（Prefill-Decode Separation） 逐渐成为大厂的主流选择，上述模式的落地有了更清晰的物理边界：</p>
+<ul>
+<li>Decode 节点：由于完全剥离了 Prefill，输入形态被高度固化，大面积直接采用 FULL 模式或高密度的 FULL_DECODE_ONLY 榨干算力。</li>
+<li>Prefill 节点：由于需要应对 Chunked Prefill 等高度动态的形状变化，更多采用 PIECEWISE 或直接处于 NONE 状态以确保绝对稳定。</li>
+</ul>
+<h2 id="2-数据为什么搬不动-压缩-hbm-流量">2. 数据为什么搬不动？—— 压缩 HBM 流量</h2>
+<p>第二种浪费才是大头。GPU 的算力增长速度远快于显存带宽，于是绝大多数推理 kernel 的真实瓶颈都不是"算不完"，而是"数据喂不上"。</p>
+<p>这一节的三种手段看起来毫不相干——换 Attention 实现、融合算子、挑后端——但它们优化的是<strong>同一个量</strong>：</p>
+<blockquote>
+<p><strong>HBM 流量 = 搬运次数 × 每次搬运的数据量。</strong></p>
+</blockquote>
+<p>FlashAttention 和 Kernel Fusion 减少的是"搬运次数"（别让中间结果落地再读回来），下一节的量化减少的是"每次搬多少字节"。</p>
+<h3 id="21-flashattention">2.1 FlashAttention</h3>
+<h4 id="211-vllm的-attention-后端与动态算子路由">2.1.1 vLLM的 Attention 后端与动态算子路由</h4>
+<p>在进入到 FlashAttention 之前，我们还是要先介绍一下 vLLM 的 Attention Backend 和 Selector 机制。</p>
+<p>Attention 算子的硬件执行效率高度依赖于工作负载（Workload）形态、硬件架构及数据类型（dtype）。vLLM 在 vllm/v1/attention/backends/ 下集成了数十种 Attention 后端，并在 registry.py 中通过 Selector 机制，根据 Head Size、dtype、硬件算力以及运行时特征（Prefill / Decode / Mixed / MLA）进行动态算子路由（Kernel Selection）。</p>
+<p>其核心后端生态及工业界典型的推荐基准（Benchmark Prefs）划分如下：</p>
+<ul>
+<li><strong>FlashInfer (flashinfer.py)</strong>：默认的通用全能型后端。得益于对 Ragged Batch、PagedAttention 以及 Prefill+Decode 混合批次的深度汇编级优化，在 Decode 及 Mixed 场景下吞吐领先。</li>
+<li><strong>FlashAttention (flash_attn.py)</strong>：NVIDIA 生态的经典基准。在纯 Prefill 场景下对长 Query 具备极佳的矩阵乘法吞吐表现，并包含 flash_attn_diffkv 等衍生变体。</li>
+<li><strong>MLA 特化后端 (mla/)</strong>：针对 DeepSeek 等模型的低秩 KV 压缩（MLA）进行算子融合与内存重排优化。包含 FlashInfer MLA、FlashMLA、CUTLASS MLA、Triton MLA 及 ROCm 架构下的 AITER Triton MLA。</li>
+<li><strong>Triton / FlexAttention (triton_attn.py, flex_attention.py)</strong>：高可定制化后端。利用高级语言抽象，便于跨硬件平台快速移植、验证或进行非标的自定义 Mask/Attention 研发。</li>
+<li><strong>硬件特化与非标后端</strong>：包含 AMD 生态的 ROCm 系列（rocm_attn.py 等）、CPU 降级后端，以及适配 Mamba、Linear Attention 等非 Transformer 架构的专用算子。</li>
+</ul>
+<p><strong>TIPS：</strong> 业界没有绝对通用的默认后端，算子路由强绑定于具体的 vLLM 版本与底层硬件。在生产环境上线或变更 workload 形态（如从单轮 QA 转向超长多轮对话）前，必须基于目标硬件进行针对性的端到端压力测试（Profile &amp; Benchmark）。</p>
+<h4 id="222-flashattentiontiling-与-online-softmax">2.2.2 FlashAttention：Tiling 与 Online-Softmax</h4>
+<p>FlashAttention 是现代 LLM 推理的基石算子。它的核心思想是通过<strong>分块计算（Tiling）*<em>和 **Online Softmax**，让 N×N 的中间矩阵*<em>根本不必在 HBM 里出现</em></em>。注意它优化的是</strong>访存**，计算量（FLOPs）一分没少。</p>
+<pre class="wider"><code>┌──────────────── Standard Attention vs FlashAttention ─────────────────┐│                                                                       ││  Standard Attention:                                                  ││                                                                       ││  Q[N,d] × K[N,d]ᵀ → S[N,N]     ← O(N²) 存储, 写入 HBM                  ││        → softmax(S) → P[N,N]    ← O(N²) 存储, 读写 HBM                 ││        → P × V[N,d] → O[N,d]    ← O(N²) 读取 HBM                       ││                                                                       ││  总 HBM 访问: O(N² + N·d)                                             ││  瓶颈: N &gt; 几千时, S 和 P 矩阵占满显存                                   ││                                                                       ││  ────────────────────────────────────────────────────────────────     ││                                                                       ││  FlashAttention (Tiling + Online Softmax):                            ││                                                                       ││  将 Q, K, V 分成 Bq × Bk 的小块:                                        ││                                                                       ││
+┌──────┐                                                             ││  │ SRAM │ ← 只在片上缓存 (192 KB, A100)                                 ││  │      │                                                             ││  │ Q_tile [Bq, d]  ← 从 HBM 加载一次                                   ││  │ K_tile [Bk, d]  ← 分块加载                                          ││  │ V_tile [Bk, d]  ← 分块加载                                          ││  │ S_tile [Bq, Bk] ← 在 SRAM 中计算, 不写回 HBM!                        ││  │ O_acc  [Bq, d]  ← 在线累加                                          ││  │ m, l   [Bq]     ← softmax 统计量 (max, sum)                         ││
+└──────┘                                                             ││                                                                       ││  for each K_tile, V_tile:                                             ││    S_tile = Q_tile @ K_tileᵀ                (SRAM 内计算)              ││    m_new = max(m_old, rowmax(S_tile))       (Online max)              ││    P_tile = exp(S_tile - m_new)             (SRAM 内计算)              ││    l_new = exp(m_old - m_new) * l_old + rowsum(P_tile)                ││    O_acc = rescale(O_acc) + P_tile @ V_tile (Online 累加)              ││                                                                       ││  总 HBM 访问: O(N²d²/M)（`M`为可用SRAM大小） ← 相比 O(N²) 大幅降低!        ｜                  ││  无需存储 N×N 矩阵, 序列长度不再受显存限制                                 
+│└───────────────────────────────────────────────────────────────────────┘</code></pre>
+<p><strong>说明：</strong></p>
+<ul>
+<li>标准注意力会显式生成两个 N×N 大矩阵，显存和带宽压力都很大。</li>
+<li>FlashAttention 不保存完整中间矩阵，而是把计算拆成小块，在片上完成并立即复用。</li>
+<li>它的目标不是减少 FLOPs，而是减少 HBM 读写。</li>
+</ul>
+<h5 id="①-为什么-standard-attention-会卡显存">① 为什么 Standard Attention 会卡显存？</h5>
+<p>Standard Attention的问题在于它把两个 N×N 的大矩阵实实在在地写进了 HBM：</p>
+<pre class="wider"><code>Q[N,d] × K[N,d]^T  -&gt;  S[N,N]                # O(N²) **写入** HBMS[N,N]             -&gt;  softmax  -&gt;  P[N,N]   # O(N²) **读 + 写** HBM P[N,N] × V[N,d]    -&gt;  O[N,d]                # O(N²) **读取** HBMHBM 中的代价：- S：要写回一次- S：softmax 前要再读一次- P：要写回一次- P：乘 V 前要再读一次</code></pre>
+<p>总 HBM 访问 <strong>O(N·d + N²)</strong>，其中 N² 项的系数是 4（S 写、S 读、P 写、P 读）。更要命的是显存：N 到几千时，S、P 两个矩阵就能把显存占满。</p>
+<p><strong>说明：</strong></p>
+<ul>
+<li>问题不只是矩阵大，而是它们必须在 HBM 里“来回搬运”</li>
+<li>当序列长度变大时，N² 级别的中间结果会迅速成为瓶颈</li>
+<li>所以标准注意力的主要痛点是访存和显存，不是算力</li>
+</ul>
+<h5 id="②-flashattention-的-tiling-思路">② FlashAttention 的 Tiling 思路</h5>
+<p>FlashAttention 把 Q/K/V 切成 <code>Bq × Bk</code> 的小块，让中间结果<strong>只在片上 SRAM 里出现，从不落回 HBM</strong>（A100 每个 SM 的 L1/shared 合计 192 KB，可作 shared memory 的约 164 KB）：</p>
+<pre class="wider"><code>Q 被切成 Q_tileK、V 被切成 K_tile / V_tile
+┌──────── SRAM / Shared Memory ──────────┐HBM -&gt; Q_tile ┤                                        ├-&gt; 输出 (O_acc)HBM -&gt; K_tile ┤  S_tile = Q_tile @ K_tile^T           ├HBM -&gt; V_tile ┤  Online Softmax(S_tile):              ├              ┤     维护m, l运行时统计量，O_acc在线累加   ├
+└───────────────────────────────────────┘              说明：- 每次只处理一小块 Q/K/V- S_tile 只在片上临时存在，不写回 HBM- 这样可以把大矩阵的“中间停留”从显存中拿掉</code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">驻留在 SRAM 的东西</th>
+<th style="text-align: left;">形状</th>
+<th style="text-align: left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>Q_tile</code></td>
+<td style="text-align: left;"><code>[Bq, d]</code></td>
+<td style="text-align: left;">从 HBM 加载</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>K_tile</code> / <code>V_tile</code></td>
+<td style="text-align: left;"><code>[Bk, d]</code></td>
+<td style="text-align: left;">分块循环加载</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>S_tile</code></td>
+<td style="text-align: left;"><code>[Bq, Bk]</code></td>
+<td style="text-align: left;"><strong>在 SRAM 中算完就用掉，不写回</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>O_acc</code></td>
+<td style="text-align: left;"><code>[Bq, d]</code></td>
+<td style="text-align: left;">在线累加的输出</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>m, l</code></td>
+<td style="text-align: left;"><code>[Bq]</code></td>
+<td style="text-align: left;">softmax 的运行时统计量（行最大值、指数和）</td>
+</tr>
+</tbody>
+</table>
+<h5 id="③-online-softmax-是怎么边算边归一化的">③ Online Softmax 是怎么“边算边归一化”的</h5>
+<p>FlashAttention能够运转的关键在于<strong>Online Softmax</strong>，它让 softmax 不需要先看到整行就能开始累加。</p>
+<p>softmax 看起来需要先知道一整行的最大值和总和，才能归一化。这似乎意味着必须先把完整的 S[N,N] 算出来。但 FlashAttention 用了 Online Softmax，允许它在分块过程中动态维护：</p>
+<ul>
+<li>m：当前最大值</li>
+<li>l：指数和</li>
+<li>O_acc：输出累加结果</li>
+</ul>
+<p>当新块到来时，如果发现最大值变了，就把历史结果按比例重新缩放，再把新块的贡献加进去。 这样就能保证：<strong>分块计算的结果，和一次性算完整 softmax 的结果严格等价。</strong></p>
+<pre class="wider"><code>m, l, O_acc = -inf, 0, 0for each K_tile, V_tile:                               # 沿 KV 方向循环    S_tile = Q_tile @ K_tileᵀ                          # SRAM 内，不写回    m_new  = max(m, rowmax(S_tile))                    # 滚动更新行最大值    P_tile = exp(S_tile - m_new)                       # SRAM 内    l      = exp(m - m_new) * l + rowsum(P_tile)       # 修正旧的指数和    O_acc  = exp(m - m_new) * O_acc + P_tile @ V_tile  # 同一个系数修正旧的累加结果    m      = m_newO = O_acc / l                                          # 整个循环结束才做这一次除法</code></pre>
+<p>每来一个新块，就用 <code>exp(m_old - m_new)</code> 把此前累加的结果<strong>追溯性地缩放一次</strong>，因此它与"先看完整行再 softmax"在数学上<strong>严格等价</strong>，不是近似。注意归一化的除法被推迟到了循环之外——这是它能一边扫一边累加的前提。</p>
+<h5 id="④-flashattention-到底省了什么">④ FlashAttention 到底省了什么？</h5>
+<p>FlashAttention 的收益主要体现在两方面：</p>
+<p><strong>显存：O(N²) → O(N)</strong> 标准 Attention 需要显式保存 S[N,N] 和 P[N,N]，所以额外显存是 O(N²)。 FlashAttention 只保存当前 tile 和少量统计量，因此额外显存降到 O(N) 级别。</p>
+<p><strong>访存（带宽）：O(N²) → O(N²d²/M)</strong> 标准 Attention 里，中间矩阵要在 HBM 里反复读写。 FlashAttention 把大部分中间计算压到片上内存完成，显著降低 HBM 访问压力。</p>
+<p>但是需要注意的是，FlashAttention 并没有把 HBM 访问从 O(N²) 降到 O(N·d)。论文给出的 IO 复杂度是 <strong>O(N²d²/M)</strong>（<code>M</code> 为可用 SRAM 大小）——<strong>N² 这一项消不掉</strong>，因为循环要沿一个方向走 <code>N/B</code> 次，每一次都得把另一侧的 tile 重新从 HBM 过一遍。它真正做的是把 N² 项的<strong>系数</strong>从 4 压到 <code>d²/M</code> 量级。</p>
+<p><strong>但要注意，计算复杂度并没有任何改变</strong> FlashAttention 并没有把注意力从 O(N²) 变成 O(N)。 它优化的是 IO 和显存占用，不是注意力本身的二次结构。</p>
+<p><strong>对比 &amp; 总结</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">特性</th>
+<th style="text-align: left;">Standard Attention</th>
+<th style="text-align: left;">FlashAttention</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">HBM 访问</td>
+<td style="text-align: left;">O(N·d + N²)</td>
+<td style="text-align: left;"><strong>O(N²d²/M)</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">额外显存</td>
+<td style="text-align: left;"><strong>O(N²)</strong>（必须物化 S、P）</td>
+<td style="text-align: left;"><strong>O(N)</strong>（只留 <code>m</code>、<code>l</code>）</td>
+</tr>
+<tr>
+<td style="text-align: left;">最大序列长度</td>
+<td style="text-align: left;">受 N² 显存约束</td>
+<td style="text-align: left;">不再受 N² 显存约束</td>
+</tr>
+<tr>
+<td style="text-align: left;">IO 效率</td>
+<td style="text-align: left;">低（中间矩阵 HBM 往返）</td>
+<td style="text-align: left;">高（tile 在 SRAM 内复用）</td>
+</tr>
+<tr>
+<td style="text-align: left;">实现复杂度</td>
+<td style="text-align: left;">简单</td>
+<td style="text-align: left;">高（需要手写 CUDA kernel）</td>
+</tr>
+</tbody>
+</table>
+<p><strong>FlashAttention 在显存上是渐进式的胜利（O(N²) → O(N)，这条无条件成立），在带宽上拿到的是一个常数倍的胜利</strong>——倍数约为 <code>M/d²</code>，<code>d</code> 越小、SRAM 越大越划算。实测 2~4× 的加速也不只来自访存量本身，还来自少了一趟独立的 softmax kernel、以及不再被 N² 显存卡住 batch。</p>
+<h5 id="⑤-训练和推理中的差异">⑤ 训练和推理中的差异</h5>
+<p>FlashAttention 在训练和推理中的作用并不完全相同。</p>
+<ul>
+<li><strong>训练时</strong>，反向传播需要依赖注意力计算中的一些中间信息。 但 FlashAttention 为了节省显存，不会把完整的 <code>S</code> 和 <code>P</code> 中间矩阵保存下来。 因此在反向阶段，通常需要通过**重算（recompute）**来恢复这些信息，再继续求梯度。 也就是说，训练阶段的核心特点是 <strong>“用计算换显存”</strong>。</li>
+<li><strong>推理时</strong>，模型只需要做前向计算，不需要反向传播。 这意味着中间结果不必长期保留，也不会带来额外的重算代价。 所以 FlashAttention 在推理阶段通常表现为<strong>纯收益</strong>：既降低显存占用，又减少访存压力。</li>
+</ul>
+<h5 id="⑥-serving-场景下的-decode-优化从-flashattention-到-flash-decoding">⑥ Serving 场景下的 Decode 优化：从 FlashAttention 到 Flash-Decoding</h5>
+<p>在 Serving 场景里，FlashAttention 的收益不只取决于计算复杂度，更取决于<strong>GPU 是否能被有效填满</strong>。它的核心优势来自 query 方向上有足够多的行可以切块复用；但在 <strong>Decode</strong> 阶段，<code>query_len = 1</code>，因此 <code>Bq</code> 只能取 1，query 方向根本切不动。此时 kernel 会退化成对一长串历史 KV 的单行扫描，SM 大量空转，原本依赖 tiling 的效率优势也会明显减弱。</p>
+<p>Decode 侧的办法不是继续沿 query 切，而是<strong>把切分方向换到 KV 维度</strong>：通过 <strong>split-K / Flash-Decoding</strong>，让多个 SM 各自处理一段历史 KV，先得到局部的注意力结果，再使用和 FlashAttention 完全一致的 <code>m</code>、<code>l</code> 在线 rescale 规则把这些局部结果合并起来。vLLM 中的 FlashInfer / paged decode kernel 走的就是这条路线，这也是上一节的 selector 需要根据 workload 形态做分派的原因。</p>
+<p>更进一步看，<strong>“分块计算 + 在线累加”</strong> 其实是同一个数学技巧在不同硬件层级上的重复出现，只是切分边界不同：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">切分位置</th>
+<th style="text-align: left;">沿什么方向切</th>
+<th style="text-align: left;">方案</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">SRAM ↔︎ HBM</td>
+<td style="text-align: left;">query</td>
+<td style="text-align: left;">FlashAttention</td>
+</tr>
+<tr>
+<td style="text-align: left;">SM ↔︎ SM</td>
+<td style="text-align: left;">KV</td>
+<td style="text-align: left;">Flash-Decoding / split-KV</td>
+</tr>
+<tr>
+<td style="text-align: left;">GPU ↔︎ GPU</td>
+<td style="text-align: left;">序列</td>
+<td style="text-align: left;">Ring Attention</td>
+</tr>
+</tbody>
+</table>
+<p>因此，在 Serving 场景中，FlashAttention 的关键不再只是“能不能把 attention 算得更省”，而是“在当前 workload 形态下，应该沿哪一维切块、在哪一层级做合并”。这也是为什么 Prefill、Decode、跨 GPU 长序列分别对应 FlashAttention、Flash-Decoding 和 Ring Attention。</p>
+<h5 id="⑦-版本演进与优化方向">⑦ 版本演进与优化方向</h5>
+<p>FlashAttention 后续版本主要是在同一套数学核心上继续做工程优化，而不是改变算法本质。</p>
+<ul>
+<li><strong>FlashAttention-2</strong> 重点提升了 GPU 并行效率，把并行维度进一步扩展到序列方向，同时减少了非矩阵乘法指令的开销。</li>
+<li><strong>FlashAttention-3</strong> 针对 Hopper 架构做了更进一步的优化，引入了 warp specialization，并支持 FP8 等更高效的低精度计算。</li>
+</ul>
+<p>不过，无论是最初版本还是后续版本，FlashAttention 的核心思想都没有变： <strong>通过分块计算（Tiling）和在线归一化（Online Softmax），在保持结果等价的前提下，大幅降低注意力计算的显存和访存开销。</strong></p>
+<h3 id="22-kernel-fusion">2.2 Kernel Fusion</h3>
+<p>Kernel Fusion 的核心目标，是<strong>把原本多个相邻的算子合并到一个 kernel 里执行</strong>，从而减少中间结果的读写开销，降低 kernel launch 次数，并提升整体吞吐效率。对于大模型推理而言，很多算子本身的计算量并不大，但它们之间频繁地在 HBM 中读写中间 tensor，会让性能很快受限于显存带宽而不是算力。因此，Kernel Fusion 本质上是在做一件和 FlashAttention 非常相似的事情：<strong>尽量让中间结果不落到 HBM，而是在片上完成连续计算。</strong></p>
+<h4 id="221-kernel-fusion-的动机与收益">2.2.1 Kernel Fusion 的动机与收益</h4>
+<p>在传统的未融合实现中，一个算子链通常会被拆成多个独立 kernel。例如以 <code>RMSNorm → RoPE → Residual</code> 为例：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">未融合（3 个独立 kernel）</th>
+<th style="text-align: left;">融合后（1 个 kernel）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">执行</td>
+<td style="text-align: left;">RMSNorm 读 x 写 temp₁ → RoPE 读 temp₁ 写 temp₂ → Residual 读 temp₂ 写 out</td>
+<td style="text-align: left;">读 x 一次 → norm → RoPE → 加 residual → 写 out 一次</td>
+</tr>
+<tr>
+<td style="text-align: left;">HBM 访问</td>
+<td style="text-align: left;"><strong>6 次</strong>（3 读 + 3 写）</td>
+<td style="text-align: left;"><strong>2 次</strong>（1 读 + 1 写）</td>
+</tr>
+<tr>
+<td style="text-align: left;">中间 tensor</td>
+<td style="text-align: left;">2 个</td>
+<td style="text-align: left;"><strong>0 个</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">kernel launch</td>
+<td style="text-align: left;">3 次</td>
+<td style="text-align: left;">1 次</td>
+</tr>
+</tbody>
+</table>
+<p>可以看到，未融合版本的问题并不只是“多了几个算子”，而是每个算子之间都要把中间结果写回 HBM，再从 HBM 读出来继续处理。这种反复搬运数据的方式，会显著放大显存带宽压力。相比之下，融合后的 kernel 直接在一次执行过程中完成多个连续操作，只在最开始读取输入、最后写出结果，中间过程尽量留在寄存器或共享内存中，从而大幅减少内存访问。</p>
+<p>Kernel Fusion优化带来的收益主要有三类：</p>
+<ol type="1">
+<li><strong>减少 HBM 访问</strong> 中间 tensor 不再频繁写回显存，显著降低带宽开销。</li>
+<li><strong>减少 kernel launch 开销</strong> 多个小 kernel 合并成一个后，可以减少 launch 次数和调度开销。</li>
+<li><strong>提升整体吞吐效率</strong> 对推理场景来说，尤其是 decode 阶段，很多算子都偏轻量，launch 和访存的开销占比很高，融合后的收益往往非常明显。</li>
+</ol>
+<p>注意这个收益的来源和 FlashAttention 完全一致——<strong>都是不让中间结果去 HBM 兜一圈</strong>，只不过 FlashAttention 作用在一个算子内部，Kernel Fusion 作用在多个算子之间。</p>
+<h4 id="222-vllm-中的-kernel-fusion-实践">2.2.2 vLLM 中的 Kernel Fusion 实践</h4>
+<p>在 vLLM 中，Kernel Fusion 已经被广泛用于推理链路的多个环节，尤其集中在 <code>csrc/libtorch_stable/</code> 下的 CUDA 实现中，目标就是尽可能把高频、低算力密度但高访存代价的操作合并执行。下面这些算子就是比较典型的例子：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">融合算子</th>
+<th style="text-align: left;">涉及操作</th>
+<th style="text-align: left;">实现位置</th>
+<th style="text-align: left;">收益</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Fused RMSNorm</td>
+<td style="text-align: left;">RMSNorm + Residual Add</td>
+<td style="text-align: left;"><code>csrc/libtorch_stable/layernorm_kernels.cu</code></td>
+<td style="text-align: left;">减少 1 次 HBM 读写</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fused RMSNorm + Quant</td>
+<td style="text-align: left;">RMSNorm + 动态 per-token 量化</td>
+<td style="text-align: left;"><code>csrc/libtorch_stable/layernorm_quant_kernels.cu</code></td>
+<td style="text-align: left;">归一化后直接出低精度</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fused RoPE</td>
+<td style="text-align: left;">RoPE + Permute</td>
+<td style="text-align: left;"><code>csrc/libtorch_stable/pos_encoding_kernels.cu</code></td>
+<td style="text-align: left;">减少中间 tensor</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fused QKV</td>
+<td style="text-align: left;">Q/K/V 三个矩阵乘合并</td>
+<td style="text-align: left;">PyTorch/cuBLAS</td>
+<td style="text-align: left;">1 次 GEMM 替代 3 次</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fused Attention</td>
+<td style="text-align: left;">softmax(QK/√d)V + KV Cache R/W</td>
+<td style="text-align: left;">FlashAttention kernel</td>
+<td style="text-align: left;">核心融合</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fused Gate-Up</td>
+<td style="text-align: left;">gate_proj + up_proj + SiLU</td>
+<td style="text-align: left;">cuBLAS + activation</td>
+<td style="text-align: left;">减少中间存储</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fused Sampling</td>
+<td style="text-align: left;">top-k + top-p + temperature</td>
+<td style="text-align: left;"><code>csrc/libtorch_stable/sampler.cu</code></td>
+<td style="text-align: left;">GPU 端采样</td>
+</tr>
+<tr>
+<td style="text-align: left;">Fused KV Cache</td>
+<td style="text-align: left;">Cache write + 量化</td>
+<td style="text-align: left;"><code>csrc/libtorch_stable/cache_kernels_fused.cu</code></td>
+<td style="text-align: left;">写入时即量化</td>
+</tr>
+</tbody>
+</table>
+<p>这些融合算子覆盖了推理过程中的几个关键环节：</p>
+<ul>
+<li>归一化阶段：如 RMSNorm 与 Residual 的融合，减少前后张量搬运；</li>
+<li>位置编码阶段：如 RoPE 与维度重排的融合，避免生成临时 tensor；</li>
+<li>线性投影阶段：如 QKV 合并计算，减少重复访存和 launch；</li>
+<li>注意力阶段：如 FlashAttention，将 softmax 和矩阵乘法尽量做成一个高效流程；</li>
+<li>采样阶段：如 top-k/top-p/temperature 一体化，减少生成端的额外开销；</li>
+<li>缓存阶段：如 KV Cache 写入与量化融合，降低显存占用并提高写入效率。</li>
+</ul>
+<p>可以看到，vLLM 的融合并不局限于某一个单点优化，而是围绕整个推理链路进行系统性的改造。其思路是：凡是存在“中间结果写回 HBM 再继续处理”的地方，都尽量尝试融合。</p>
+<h3 id="23-小结">2.3 小结</h3>
+<p>Kernel Fusion 和 FlashAttention 的共同点在于，它们都在解决同一个根本问题： <strong>把本可以在片上连续完成的计算，尽量压缩成一次执行，避免中间结果落到 HBM。</strong></p>
+<p>如果说 FlashAttention 是注意力内部的“算子内融合”，那么 Kernel Fusion 则更像是推理系统层面的“算子间融合”。二者结合起来，最终目标都是：</p>
+<ul>
+<li>少读少写</li>
+<li>少 launch</li>
+<li>少中间 tensor</li>
+<li>更高吞吐、更低延迟</li>
+</ul>
+<h2 id="3-能不能少搬几个字节-低精度推理">3. 能不能少搬几个字节？—— 低精度推理</h2>
+<p>上一节在减少搬运<strong>次数</strong>，这一节换个方向：让每次搬运的<strong>数据本身变小</strong>。两者正交，可以叠加。</p>
+<h3 id="31-推理量化的对象收益与代价">3.1 推理量化的对象、收益与代价</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">权重 (W)</th>
+<th style="text-align: left;">激活 (A)</th>
+<th style="text-align: left;">KV Cache</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">生命周期</td>
+<td style="text-align: left;">常驻 GPU，占比最大</td>
+<td style="text-align: left;">动态生成，逐层计算</td>
+<td style="text-align: left;">动态增长，随序列膨胀</td>
+</tr>
+<tr>
+<td style="text-align: left;">量化收益</td>
+<td style="text-align: left;">减少显存、加速推理</td>
+<td style="text-align: left;">加速 GEMM、减少带宽</td>
+<td style="text-align: left;">更多并发、更长上下文</td>
+</tr>
+<tr>
+<td style="text-align: left;">典型方法</td>
+<td style="text-align: left;">GPTQ / AWQ / W4A16</td>
+<td style="text-align: left;">W8A8 / FP8、per-token</td>
+<td style="text-align: left;">FP8 / INT8、per-head</td>
+</tr>
+</tbody>
+</table>
+<p>三种量化对象不是均匀受益的。权重量化同时降低显存和 Decode 带宽压力，因为 Decode 每步都要读权重；KV Cache 量化主要受益于 Decode 的历史 KV 读取和并发数；激活量化则更直接加速 Prefill 的 GEMM。选择方案前需要先判断瓶颈在 Prefill 还是 Decode。</p>
+<h3 id="32-权重量化方法">3.2 权重量化方法</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">方法</th>
+<th style="text-align: left;">格式</th>
+<th style="text-align: left;">原理</th>
+<th style="text-align: left;">量化时机</th>
+<th style="text-align: left;">精度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>GPTQ</strong></td>
+<td style="text-align: left;">W4A16</td>
+<td style="text-align: left;">基于 Hessian 的逐层最优量化</td>
+<td style="text-align: left;">离线（需校准数据）</td>
+<td style="text-align: left;">好</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>AWQ</strong></td>
+<td style="text-align: left;">W4A16</td>
+<td style="text-align: left;">保护显著权重通道</td>
+<td style="text-align: left;">离线（需校准数据）</td>
+<td style="text-align: left;">更好</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>SmoothQuant</strong></td>
+<td style="text-align: left;">W8A8</td>
+<td style="text-align: left;">将激活难度转移到权重</td>
+<td style="text-align: left;">离线</td>
+<td style="text-align: left;">好</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FP8</strong></td>
+<td style="text-align: left;">W8A8</td>
+<td style="text-align: left;">硬件原生 FP8 格式</td>
+<td style="text-align: left;">在线/离线</td>
+<td style="text-align: left;">接近 FP16</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Weight-only</strong></td>
+<td style="text-align: left;">W4A16/W8A16</td>
+<td style="text-align: left;">只量化权重，激活保持 FP16</td>
+<td style="text-align: left;">离线</td>
+<td style="text-align: left;">较好</td>
+</tr>
+</tbody>
+</table>
+<p>以 Llama-70B 为例：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">格式</th>
+<th style="text-align: left;">权重大小</th>
+<th style="text-align: left;">Decode 加速</th>
+<th style="text-align: left;">精度损失</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">FP16</td>
+<td style="text-align: left;">140 GB</td>
+<td style="text-align: left;">1.0×（基准）</td>
+<td style="text-align: left;">基准</td>
+</tr>
+<tr>
+<td style="text-align: left;">FP8 (W8A8)</td>
+<td style="text-align: left;">70 GB</td>
+<td style="text-align: left;">1.5–2.0×</td>
+<td style="text-align: left;">极小</td>
+</tr>
+<tr>
+<td style="text-align: left;">INT8 (W8A8)</td>
+<td style="text-align: left;">70 GB</td>
+<td style="text-align: left;">1.5–2.0×</td>
+<td style="text-align: left;">小</td>
+</tr>
+<tr>
+<td style="text-align: left;">INT4 (W4A16)</td>
+<td style="text-align: left;">35 GB</td>
+<td style="text-align: left;">1.8–2.5×</td>
+<td style="text-align: left;">中等</td>
+</tr>
+</tbody>
+</table>
+<p>Decode 之所以能加速，有三个叠加的原因：</p>
+<ol type="1">
+<li><strong>权重从 HBM 加载的带宽直接减半</strong>——回到 10.5 节那笔账，batch=1 时权重读取就是 decode 耗时的大头，砍掉一半立竿见影；</li>
+<li>INT4 / FP8 GEMM 能用上 Tensor Core 的特殊指令，算力更高；</li>
+<li>模型变小后可能用更少的卡装下，<strong>连通信开销一起省了</strong>。</li>
+</ol>
+<h3 id="33-fp8-推理">3.3 FP8 推理</h3>
+<p>FP8 是 H100/H200 引入的硬件原生低精度格式，vLLM 通过 <code>vllm/model_executor/layers/quantization/fp8.py</code> 支持：</p>
+<p>FP8 有两种排布，推理基本只用前者：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">格式</th>
+<th style="text-align: left;">位分配</th>
+<th style="text-align: left;">范围</th>
+<th style="text-align: left;">精度</th>
+<th style="text-align: left;">用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>E4M3</strong></td>
+<td style="text-align: left;">1 符号 + 4 指数 + 3 尾数</td>
+<td style="text-align: left;">[-448, 448]</td>
+<td style="text-align: left;">~3–4 位有效数字</td>
+<td style="text-align: left;"><strong>权重与激活</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">E5M2</td>
+<td style="text-align: left;">1 符号 + 5 指数 + 2 尾数</td>
+<td style="text-align: left;">更大</td>
+<td style="text-align: left;">~2–3 位有效数字</td>
+<td style="text-align: left;">梯度，推理少用</td>
+</tr>
+</tbody>
+</table>
+<p>这个取舍很直白：E4M3 拿指数位换尾数位，<strong>牺牲动态范围来保精度</strong>——推理时数值范围可以靠 scaling 控住，精度却不能省。</p>
+<p>FP8 推理的优势：</p>
+<ul>
+<li>Tensor Core 原生支持 FP8 GEMM。H100 SXM 稠密算力 <strong>FP8 1979 TFLOPS vs BF16 989 TFLOPS，理论 2×</strong>（常见的 3958 TFLOPS 是"带稀疏"口径，不能拿来和稠密 BF16 比）</li>
+<li>权重 + 激活 + KV Cache 全链路 FP8 → 显存减半</li>
+<li>Per-tensor / Per-token scaling 可按需选择精度档位</li>
+</ul>
+<h3 id="34-混合精度组合与性能评测">3.4 混合精度组合与性能评测</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">组合</th>
+<th style="text-align: left;">权重</th>
+<th style="text-align: left;">激活</th>
+<th style="text-align: left;">KV Cache</th>
+<th style="text-align: left;">显存</th>
+<th style="text-align: left;">TTFT</th>
+<th style="text-align: left;">TPOT</th>
+<th style="text-align: left;">质量</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">FP16 全精度</td>
+<td style="text-align: left;">FP16</td>
+<td style="text-align: left;">FP16</td>
+<td style="text-align: left;">FP16</td>
+<td style="text-align: left;">100%</td>
+<td style="text-align: left;">基准</td>
+<td style="text-align: left;">基准</td>
+<td style="text-align: left;">基准</td>
+</tr>
+<tr>
+<td style="text-align: left;">FP8 全链路</td>
+<td style="text-align: left;">FP8</td>
+<td style="text-align: left;">FP8</td>
+<td style="text-align: left;">FP8</td>
+<td style="text-align: left;">50%</td>
+<td style="text-align: left;">0.7×</td>
+<td style="text-align: left;">0.6×</td>
+<td style="text-align: left;">≈ 基准</td>
+</tr>
+<tr>
+<td style="text-align: left;">W4A16 + FP16 KV</td>
+<td style="text-align: left;">INT4</td>
+<td style="text-align: left;">FP16</td>
+<td style="text-align: left;">FP16</td>
+<td style="text-align: left;">35%</td>
+<td style="text-align: left;">0.8×</td>
+<td style="text-align: left;">0.5×</td>
+<td style="text-align: left;">轻降</td>
+</tr>
+<tr>
+<td style="text-align: left;">W4A16 + FP8 KV</td>
+<td style="text-align: left;">INT4</td>
+<td style="text-align: left;">FP16</td>
+<td style="text-align: left;">FP8</td>
+<td style="text-align: left;">27%</td>
+<td style="text-align: left;">0.7×</td>
+<td style="text-align: left;">0.5×</td>
+<td style="text-align: left;">轻降</td>
+</tr>
+<tr>
+<td style="text-align: left;">FP8 W/A + FP8 KV</td>
+<td style="text-align: left;">FP8</td>
+<td style="text-align: left;">FP8</td>
+<td style="text-align: left;">FP8</td>
+<td style="text-align: left;">50%</td>
+<td style="text-align: left;">0.5×</td>
+<td style="text-align: left;">0.5×</td>
+<td style="text-align: left;">≈ 基准</td>
+</tr>
+</tbody>
+</table>
+<p><strong>表中数值是相对基准的比例，仅作量级示意，实际因模型和场景而异。</strong> 读这张表时注意三条规律：</p>
+<ul>
+<li><strong>TTFT 主要受权重量化影响</strong>（Prefill 是 compute-bound，吃的是算力）</li>
+<li><strong>TPOT 同时受权重量化和 KV 量化影响</strong>（Decode 是 memory-bound，吃的是带宽）</li>
+<li><strong>显存降低还有二阶收益</strong>：省下的显存能换更大 batch，实际吞吐提升往往超过表里的单请求数字</li>
+</ul>
+<p>最后一句必须说在前面：<strong>质量损失一定要用 eval benchmark 实测</strong>（HumanEval、MMLU 等），不能靠"≈ 基准"这三个字就上生产。</p>
+<h2 id="4-能不能少跑几轮模型-投机解码">4. 能不能少跑几轮模型？—— 投机解码</h2>
+<p>前面三节都在优化"一轮怎么跑得更快"。这一节换个思路：<strong>能不能让一轮多产出几个 token，从而少跑几轮？</strong></p>
+<h3 id="41-decode-的根本瓶颈">4.1 Decode 的根本瓶颈</h3>
+<p>Decode 阶段的核心瓶颈是<strong>逐 Token 串行</strong>：每一步只生成 1 个 token，但需要完整读取模型权重和 KV Cache。GPU 算力的绝大部分处于闲置状态（低 arithmetic intensity）。</p>
+<pre><code>传统 Decode：
+Step 1 → token₁ →
+Step 2 → token₂ →
+Step 3 → token₃ → …  每一步都要：读完整模型权重 + 读全部历史 KV，却只算出 1 个 token</code></pre>
+<p>算力利用率在小 batch 下可以低到个位数百分比——绝大部分时间在等 HBM。（batch 增大后同一份权重被多个请求摊薄，利用率会显著回升，这正是 Continuous Batching 有效的根本原因；但<strong>单个请求的延迟</strong>并不会因此变好，这才是投机解码要解决的问题。）</p>
+<h3 id="42-speculative-decoding-基本原理">4.2 Speculative Decoding 基本原理</h3>
+<p>核心思想：用一个<strong>小而快</strong>的 Draft Model 一次性推测多个候选 token，然后用<strong>大而准</strong>的 Target Model 并行验证这些候选。</p>
+<p>在看流程之前，必须先破除一个几乎人人都会产生的误解：</p>
+<blockquote>
+<p><strong>投机解码并没有消除自回归依赖。</strong></p>
+</blockquote>
+<p>看到"一次 Forward 产出 5 个 token"，很容易以为 token 之间的依赖被打破、可以并行生成了。<strong>不是的。</strong> token 之间的因果依赖是语言模型的定义本身，谁也绕不过去。投机解码做的是另一件事：</p>
+<ul>
+<li><strong>依赖仍然存在</strong>：<code>d₂</code> 的生成依然依赖 <code>d₁</code>，<code>d₃</code> 依赖 <code>d₂</code>……这个串行链条在 <strong>Draft 模型内部</strong>照样一步步走完，只不过 Draft 模型足够便宜，串行 5 步的代价也很小；</li>
+<li><strong>被并行化的是"验证"，不是"生成"</strong>：Target 模型拿到 <code>[d₁...d₅]</code> 这个<strong>已经确定的序列</strong>之后，可以用一次 Forward 同时算出所有位置的真实概率分布——因为此时每个位置的输入前缀都已知了，不需要等上一步的输出。</li>
+</ul>
+<p>所以它的本质是一次<strong>赌注</strong>：用便宜模型猜一条路径，再用贵模型一次性核对这条路径对不对。猜对了就白赚几个 token，猜错了就退回重来。<strong>它省下的是 Target 模型的"轮次"，而不是语言模型的"依赖"。</strong> 这也解释了为什么接受率一低，收益就迅速蒸发——赌输的次数太多了。</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145230282。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923145230282.png</code></figcaption></figure></p>
+<p>三个要点：</p>
+<ul>
+<li><strong>一次 Target Forward 产出了 3 个 token</strong>，理想情况最多能到 K+1 个；</li>
+<li><strong>拒绝是"截断式"的</strong>——位置 3 一旦被拒，后面的 4、5 全部作废，因为它们的前提已经不成立了。这也是接受率对收益影响巨大的原因；</li>
+<li><strong>输出分布严格无损</strong>：这套修正采样（rejection sampling）在数学上保证最终分布与直接用 Target Model 采样<strong>完全一致</strong>。投机解码不是近似加速，这一点和量化有本质区别。</li>
+</ul>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">做法</th>
+<th style="text-align: left;">耗时</th>
+<th style="text-align: left;">产出</th>
+<th style="text-align: left;">等效 TPOT</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">普通 Decode</td>
+<td style="text-align: left;">5 次 Forward，每次 15 ms</td>
+<td style="text-align: left;">75 ms</td>
+<td style="text-align: left;">5 tokens</td>
+<td style="text-align: left;">15 ms</td>
+</tr>
+<tr>
+<td style="text-align: left;">Speculative</td>
+<td style="text-align: left;">Draft 5 步（5 ms）+ Verify 1 次（18 ms）</td>
+<td style="text-align: left;">23 ms</td>
+<td style="text-align: left;">3 tokens（接受 2 + 重采样 1）</td>
+<td style="text-align: left;"><strong>≈ 7.7 ms</strong></td>
+</tr>
+</tbody>
+</table>
+<p>约 <strong>2× 加速</strong>。注意 Verify 那 18 ms 比普通 Decode 的 15 ms 略高——因为要一次算 6 个位置而不是 1 个，计算量确实增加了，只是在 memory-bound 区间这点额外计算几乎免费。<strong>这正是投机解码的本质：拿闲置算力去换延迟。</strong></p>
+<h3 id="43-工程实现与核心算法schedulerkv-cache-与-拒绝采样">4.3 工程实现与核心算法：Scheduler、KV Cache 与 拒绝采样</h3>
+<p>投机解码（Speculative Decoding）在 vLLM 中的落地绝非简单的算法套用，其核心难点在于非确定性（Speculative）的显存管理与多模型流水线的数学对冲。</p>
+<h4 id="431-核心数据流拓扑图">4.3.1 核心数据流拓扑图</h4>
+<p>在 vLLM 的实际工程实现中，Draft 模型（草稿模型）与 Target 模型（目标大模型）各自维护一套完全隔离的 KV Cache 空间。Target 模型在验证时，必须使用自己独立计算的 KV 矩阵。以下是 vLLM 投机解码的数据流向与组件交互图：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145158963。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923145158963.png</code></figcaption></figure></p>
+<h4 id="432-关键工程痛点显存管理的时间回溯">4.3.2 关键工程痛点：显存管理的“时间回溯”</h4>
+<p>传统的自回归生成在工程上是单向递增的，显存管理器只需机械地分配新块。然而，投机解码给显存管理引入了“可能要回滚”的全新机制：</p>
+<ul>
+<li>维度与空间完全隔离：Draft 模型（如 1B）每 Token 的 KV 尺寸远小于 Target 模型（如 70B）。Target 模型在验证前向传播（Verification Forward）时，会将候选的 K 个 Token 作为输入，在自己的 Transformer Layer 中计算出大模型视角下的 KV 值并写入大模型的缓存中，两者的显存完全不共享、不复用。</li>
+<li>物理块的“裁剪（Truncate）”与释放：拒绝采样确定接受长度 <code>M（0 &lt;= M &lt;= K)</code> 后，未被接受的 <code>K-M</code> 个 Token 对应的 KV 空间便成了“脏数据”。vLLM 会调用显存管理器的回滚 API，强行将逻辑 Token ID 与物理块槽位的映射关系撤回到第 M 个 Token 处。这种“按位置撤销”的逻辑极大地增加了物理显存调度的复杂性。</li>
+</ul>
+<h4 id="433-核心算法拒绝采样的数学对冲">4.3.3 核心算法：拒绝采样的数学对冲</h4>
+<p>投机采样之所以能做到数学上完全无损（Lossless），完全依赖于其精妙的拒绝采样（Rejection Sampling）与概率对冲机制。</p>
+<p><strong>接受概率公式</strong></p>
+<p>设在某位置，Draft 与 Target 模型的预测概率分布分别为 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>p</mi><mo stretchy="false" form="prefix">(</mo><mi>x</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">p(x)</annotation></semantics></math> 和 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>q</mi><mo stretchy="false" form="prefix">(</mo><mi>x</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">q(x)</annotation></semantics></math>。对于 Draft 采样出的候选 Token <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>x</mi><mo>*</mo></msup><annotation encoding="application/x-tex">x^*</annotation></semantics></math>，Target 模型的接受概率为：</p>
+<p>P(接受 x∗)=min⁡(1,q(x∗)p(x∗))<em>P</em>(接受 <em>x</em>∗)=min(1,<em>p</em>(<em>x</em>∗)<em>q</em>(<em>x</em>∗))</p>
+<ul>
+<li><math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>q</mi><mo stretchy="false" form="prefix">(</mo><msup><mi>x</mi><mo>*</mo></msup><mo stretchy="false" form="postfix">)</mo><mo>≥</mo><mi>p</mi><mo stretchy="false" form="prefix">(</mo><msup><mi>x</mi><mo>*</mo></msup><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">q(x^*) \ge p(x^*)</annotation></semantics></math>：大模型更认可该候选，100% 接受。</li>
+</ul>
+<p><strong>拒绝后的残差对冲</strong></p>
+<p>在多步投机中，验证是串行、逐字进行的。一旦某个候选 Token 在第 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><mi>M</mi><mo>+</mo><mn>1</mn></mrow><annotation encoding="application/x-tex">M+1</annotation></semantics></math> 个位置被拒绝，投机链条彻底断裂。大模型不仅要触发回滚、抹去该位置及之后的所有 KV Cache，还必须基于残差分布（Residual Distribution） <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>q</mi><mo>′</mo></msup><mo stretchy="false" form="prefix">(</mo><mi>x</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">q&#39;(x)</annotation></semantics></math> 在当前位置重新采样出一个 Token 来拉回正轨：</p>
+<p>q′(x)=max⁡(0,q(x)−p(x))∑zmax⁡(0,q(z)−p(z))<em>q</em>′(<em>x</em>)=∑<em>z</em>max(0,<em>q</em>(<em>z</em>)−<em>p</em>(<em>z</em>))max(0,<em>q</em>(<em>x</em>)−<em>p</em>(<em>x</em>))</p>
+<p>直观理解：当小模型在 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><msup><mi>x</mi><mo>*</mo></msup><annotation encoding="application/x-tex">x^*</annotation></semantics></math> 处过于自信（被拒绝）时，大模型在重新采样时会扣除小模型多估的概率空间。残差分布 <math display="inline" xmlns="http://www.w3.org/1998/Math/MathML"><semantics><mrow><msup><mi>q</mi><mo>′</mo></msup><mo stretchy="false" form="prefix">(</mo><mi>x</mi><mo stretchy="false" form="postfix">)</mo></mrow><annotation encoding="application/x-tex">q&#39;(x)</annotation></semantics></math> 的本质，就是去专门采样那些大模型认为可能出现、但被小模型低估（残差部分）的 Token，从而在统计学上实现与大模型原生自回归的绝对一致。在每个 Step 结束时，调度器调用 update_from_output() 根据最终实际接受的 Token 数量校准步长，并将无用的物理显存块吐回给内存池。</p>
+<h4 id="434-speculative-decoding-的变体">4.3.4 Speculative Decoding 的变体</h4>
+<p>不同 Speculative Decoding 方法的核心区别，主要在于**“候选 token 如何生成”**。它们整体都遵循类似的流程：</p>
+<pre><code>Candidate Generation        │  
+▼[d₁, d₂, d₃, ...]        │  
+▼Target Model Verification        │
+┌────┴────┐  
+▼  
+▼ Accept     Reject</code></pre>
+<p>因此在 vLLM 中，这些不同的候选生成机制被统一抽象为 <strong>Proposer（候选生成器）</strong>，实现在 <code>vllm/v1/spec_decode/</code> 下。不同 Proposer 负责产生 speculative decoding 所需的候选 token，而后续的 Target 验证、接受/拒绝以及 KV Cache 更新等流程则可以复用统一的 speculative decoding 基础设施。</p>
+<p>但在看表之前要先做一个分类上的澄清，因为下表把六种方法平铺在一起，容易掩盖一件事：<strong>它们并不都是"推理技巧"。</strong></p>
+<pre><code>Speculative Decoding（一种推理时的加速框架）
+│├── 纯推理侧，不碰模型：│
+├── 独立 Draft Model      —— 另找一个小模型│
+├── N-gram               —— 从 prompt 里抄│
+└── Suffix Decoding      —— 从后缀树里抄
+│├── 需要额外训练一个&quot;头&quot;：│
+├── EAGLE                —— 训一个特征级 draft 头│
+└── Medusa               —— 训若干并行 LM 头
+│└── 模型自带（Model-native）：
+└── MTP                  —— 预训练阶段就已经有了</code></pre>
+<p>其中，<strong>MTP 和其他方法尤其值得区分</strong>。</p>
+<p>N-gram、Suffix、Draft Model、EAGLE、Medusa，本质上都是为了在推理阶段获得更便宜的候选 token：有的方法依赖另一个小模型，有的方法依赖历史 token，有的方法在 Target Model 上增加额外的预测组件。</p>
+<p>而 <strong>Multi-Token Prediction（MTP）首先是一种模型架构与训练目标</strong>：模型在训练阶段不仅学习预测下一个 token，还学习预测多个未来位置的 token。这样得到的 MTP 层在推理阶段又可以天然用于生成 speculative decoding 所需要的候选 token。</p>
+<p>因此，MTP 与其他方法最大的区别在于：</p>
+<blockquote>
+<p><strong>EAGLE、Medusa 等是在已有 Target Model 外部增加 speculative 组件；MTP 则要求 Target Model 本身原生具备 Multi-Token Prediction 能力。</strong></p>
+</blockquote>
+<p>这也带来了明显的工程差异：</p>
+<ul>
+<li>Draft Model、N-gram、Suffix 等更多属于<strong>部署阶段可以选择的推理策略</strong>；</li>
+<li>EAGLE、Medusa 虽然也可以在部署阶段启用，但需要提前针对特定 Target Model 训练相应的额外组件；</li>
+<li>MTP 则要求模型 checkpoint 原生包含对应的 MTP 结构和权重。</li>
+</ul>
+<p>在 vLLM 中，这一点也体现在实现上：MTP 的相关配置会从模型配置中读取，例如 <code>num_nextn_predict_layers</code>；对应的 MTP 权重也作为模型 checkpoint 的一部分进行加载。换句话说，<strong>MTP 不是 vLLM 在部署时临时给普通模型外挂的能力，而是模型本身携带的能力。</strong></p>
+<p>下表是对它们几个的对比：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">方法</th>
+<th style="text-align: left;">候选生成机制</th>
+<th style="text-align: left;">核心原理</th>
+<th style="text-align: left;">优势</th>
+<th style="text-align: left;">局限</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Draft Model</strong></td>
+<td style="text-align: left;">独立小模型</td>
+<td style="text-align: left;">用一个更小、更快的模型自回归生成候选</td>
+<td style="text-align: left;">通用、与 Target 解耦</td>
+<td style="text-align: left;">需要额外模型、显存和计算</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>N-gram</strong></td>
+<td style="text-align: left;">历史 token 匹配</td>
+<td style="text-align: left;">从已有上下文中查找重复 n-gram 并预测后续 token</td>
+<td style="text-align: left;">几乎零模型开销</td>
+<td style="text-align: left;">依赖文本中的重复模式</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Suffix Decoding</strong></td>
+<td style="text-align: left;">后缀匹配</td>
+<td style="text-align: left;">利用后缀结构/匹配结果生成候选</td>
+<td style="text-align: left;">无需额外训练模型</td>
+<td style="text-align: left;">对上下文中的可匹配模式依赖较强</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>EAGLE</strong></td>
+<td style="text-align: left;">Target Feature</td>
+<td style="text-align: left;">利用 Target Model 的内部 feature，通过轻量 Draft Head 自回归生成候选</td>
+<td style="text-align: left;">不需要完整 Draft Model，额外开销较低</td>
+<td style="text-align: left;">需要针对 Target Model 训练 EAGLE 组件</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Medusa</strong></td>
+<td style="text-align: left;">多预测 Head</td>
+<td style="text-align: left;">在 Target Model 上增加多个未来 token 预测 Head，并构造候选树</td>
+<td style="text-align: left;">不需要独立 Draft Model，可并行产生多个候选</td>
+<td style="text-align: left;">需要训练额外 Head，并涉及 Candidate Tree / Tree Attention</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MTP</strong></td>
+<td style="text-align: left;">MTP Layers</td>
+<td style="text-align: left;">利用模型原生的 Multi-Token Prediction 层生成未来 token</td>
+<td style="text-align: left;">模型原生支持，天然适合 speculative decoding</td>
+<td style="text-align: left;">需要模型 checkpoint 原生支持 MTP</td>
+</tr>
+</tbody>
+</table>
+<h5 id="eagle不再外挂完整-draft-model而是外挂轻量-draft-head">EAGLE：不再外挂完整 Draft Model，而是外挂轻量 Draft Head</h5>
+<p>EAGLE 的核心思想是：</p>
+<blockquote>
+<p><strong>利用 Target Model 已经计算出来的内部 feature，再通过一个专门训练的轻量 Draft Network 生成候选，而不是再运行一个完整的 Draft Model。</strong></p>
+</blockquote>
+<p>可以粗略理解为：</p>
+<pre><code>                 Target Model                      │  
+▼               Hidden Feature                      │  
+▼
+┌───────────┐                │ EAGLE     │                │ Draft Head│
+└─────┬─────┘                      │                  d₁ → d₂ → d₃ → ...                      │  
+▼              Target Verification</code></pre>
+<p>因此 EAGLE 与 Draft Model 的最大区别是：</p>
+<pre><code>Draft Model：Target Model + 完整 Draft ModelEAGLE：Target Model + 轻量 EAGLE Draft Component</code></pre>
+<p>EAGLE 并不是一个可以对任意模型直接通用的插件。EAGLE Head 需要针对特定 Target Model 进行训练和适配，但相比维护一个完整的 Draft Model，它的额外参数量和计算开销通常要小得多。</p>
+<h5 id="medusa多个-head-同时预测未来位置">Medusa：多个 Head 同时预测未来位置</h5>
+<p>Medusa 的思路与 EAGLE 类似，也是在 Target Model 上增加额外的预测组件，但它采用的是<strong>多 Head</strong>设计。</p>
+<pre><code>                     Target Model                          │  
+▼                     Hidden State                          │
+┌───────────────┼───────────────┐  
+▼  
+▼  
+▼      Medusa Head 1   Medusa Head 2   Medusa Head 3          │               │               │  
+▼  
+▼  
+▼      candidates       candidates       candidates
+└───────────────┼───────────────┘  
+▼                   Candidate Tree                          │  
+▼                  Target Verification</code></pre>
+<p>每个 Head 负责预测不同未来位置的 token，并可以产生多个候选。多个 Head 的结果进一步组织成 <strong>Candidate Tree</strong>，然后 Target Model 利用 Tree Attention 等机制一次验证多条候选路径。</p>
+<p>因此，Medusa 的关键并不只是“增加几个 LM Head”，而是：</p>
+<blockquote>
+<p><strong>利用多个预测 Head 构造未来 token 的候选树，再通过一次 Target Model 执行验证多个候选路径。</strong></p>
+</blockquote>
+<p>这也是 Medusa 与简单的“多个并行 LM Head”之间的重要区别。</p>
+<h5 id="mtp模型原生就拥有-multi-token-prediction-能力">MTP：模型原生就拥有 Multi-Token Prediction 能力</h5>
+<p>MTP 与前面的 EAGLE / Medusa 最大的区别在于：</p>
+<blockquote>
+<p><strong>MTP 不是部署时外挂到普通模型上的组件，而是模型架构和训练阶段就已经具备的能力。</strong></p>
+</blockquote>
+<p>可以理解为：</p>
+<pre><code>                  Target Model                       │  
+▼                Hidden Features                       │  
+▼
+┌─────────────┐                │ MTP Layer 1 │
+└──────┬──────┘                       │  
+▼
+┌─────────────┐                │ MTP Layer 2 │
+└──────┬──────┘                       │  
+▼                 Future Tokens                       │  
+▼               Target Verification</code></pre>
+<p>因此，从部署形态上看：</p>
+<pre><code>Draft Model：Target + 独立 Draft ModelEAGLE：Target + EAGLE Draft ComponentMedusa：Target + 多个 Medusa HeadsMTP：Target 本身就包含 MTP Layers</code></pre>
+<p>这也是为什么 MTP 能否用于 speculative decoding，在很大程度上取决于<strong>模型 checkpoint 是否原生支持 MTP</strong>。</p>
+<p>在 vLLM 的工程实现中，MTP 并没有完全独立出一套 speculative decoding 框架，而是复用了已有的 proposer 基础设施。部分 MTP 模型会基于 <code>EagleProposer</code> 进行扩展，并由模型侧的 MTP predictor 负责具体的候选生成。</p>
+<p>这里需要特别注意：</p>
+<blockquote>
+<p><strong>“代码上复用 <code>EagleProposer</code>”并不意味着“MTP 算法本质上是 EAGLE 的一种特例”。</strong></p>
+</blockquote>
+<p>二者在算法思想上仍然不同，只是在 vLLM 中，它们的候选生成和 speculative decoding 执行流程具有较强的共性，因此可以复用同一套工程抽象。</p>
+<h5 id="从外挂程度理解这些方法">从“外挂程度”理解这些方法</h5>
+<p>如果从一个非常直观的工程视角来看（注意：这只是<strong>工程上的理解框架，而不是严格的算法演进顺序</strong>），可以把这些方法理解成 Target Model 的 speculative 能力逐渐与模型本身融合：</p>
+<pre><code>Draft Model    │    │ 另找一个小模型来猜  
+▼EAGLE    │    │ 利用 Target Feature + 轻量 Draft Component  
+▼Medusa    │    │ 多个 Head 产生未来 token 候选  
+▼MTP    │    │ 模型原生学习预测多个未来 token  
+▼Model-native Speculation</code></pre>
+<p>它们虽然实现方式不同，但最终都在解决同一个问题：</p>
+<blockquote>
+<p><strong>Target Model 每生成一个 token 都需要执行昂贵的计算，而 speculative decoding 希望用更低成本的方法一次猜出多个 token，再让 Target Model 一次性验证，从而减少 Target Model 的逐 token 解码次数。</strong></p>
+</blockquote>
+<p>最后还需要注意一个反直觉现象：Speculative Decoding 在高并发、高 GPU 利用率场景下可能出现负收益。它通过增加 Draft 计算，换取 Target Model 更少的 autoregressive decoding iteration。当 GPU 已经处于较高利用率时，额外的 Draft 计算会与其他请求竞争计算、显存带宽以及执行资源，此时减少 Target iteration 带来的收益可能不足以抵消新增开销，甚至导致整体性能下降。因此，Speculative Decoding 更容易在 GPU 资源相对充裕、且对 Decode latency / ITL 敏感的场景中体现价值；对于高并发、吞吐优先的 Serving 场景，则需要结合 Acceptance Rate、Draft 成本、Batch Size 和 GPU 利用率进行实际评估。</p>
+
+</article>
+<div class="pnav">
+ <span><a href="05-KV Cache：LLM Serving 的第一号内存问题.html">← 上一篇 05</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><a href="07.1-Multi-GPU：一张卡不够时如何扩展.html">下一篇 07.1 →</a></span>
+</div>
+</body>
+</html>

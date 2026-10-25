@@ -1,0 +1,1985 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>08 模型适配：如何跟上变化极快的模型世界</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 08 模型适配：如何跟上变化极快的模型世界</div>
+<article>
+ <div class="ahead">
+  <span class="chip">08</span>
+  <h1>模型适配：如何跟上变化极快的模型世界</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 9 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（48 条）</summary><ol><li><a href="#1-痛点为什么推理引擎必须持续适配新模型">1. 痛点：为什么推理引擎必须持续适配新模型？</a><ol class="lv3"><li><a href="#11-模型算法同质化与工程实现异构化">1.1 模型算法同质化与工程实现异构化</a></li><li><a href="#12-新模型差异如何向下游扩散">1.2 新模型差异如何向下游扩散？</a></li><li><a href="#13-推理引擎适配的核心目标">1.3 推理引擎适配的核心目标</a></li></ol></li><li><a href="#2-vllm-的核心抽象从模型接入到运行时执行">2. vLLM 的核心抽象：从模型接入到运行时执行</a><ol class="lv3"><li><a href="#21-配置语义modelconfig-将外部参数收敛为执行意图">2.1 配置语义：ModelConfig 将外部参数收敛为执行意图</a></li><li><a href="#22-模型发现modelregistry-负责定位实现">2.2 模型发现：ModelRegistry 负责定位实现</a></li><li><a href="#23-能力契约nnmodule-加-protocol而不是统一继承树">2.3 能力契约：nn.Module 加 Protocol，而不是统一继承树</a></li><li><a href="#24-模型落地modelloader-与-weightsmapper">2.4 模型落地：ModelLoader 与 WeightsMapper</a></li><li><a href="#25-运行时执行边界worker--modelrunner">2.5 运行时执行边界：Worker + ModelRunner</a></li><li><a href="#26-执行计划输入scheduleroutput">2.6 执行计划输入：SchedulerOutput</a></li><li><a href="#27-从执行计划到算子输入attention-metadata">2.7 从执行计划到算子输入：Attention Metadata</a></li><li><a href="#28-模型计算与-attention-backend从语义到-kernel">2.8 模型计算与 Attention Backend：从语义到 Kernel</a></li><li><a href="#29-横切抽象kvtokenizer多模态与插件">2.9 横切抽象：KV、Tokenizer、多模态与插件</a></li><li><a href="#210-动态运行时与静态执行图抽象边界的性能代价">2.10 动态运行时与静态执行图：抽象边界的性能代价</a></li><li><a href="#211-新模型接入时的判断路径">2.11 新模型接入时的判断路径</a></li><li><a href="#212-小结动态性上浮静态性下沉">2.12 小结：动态性上浮，静态性下沉</a></li></ol></li><li><a href="#3-适配机制的演进从临时补丁到编译化扩展">3. 适配机制的演进：从临时补丁到编译化扩展</a><ol class="lv3"><li><a href="#31-早期方式硬编码与模型专用实现">3.1 早期方式：硬编码与模型专用实现</a></li><li><a href="#32-热插拔适配monkey-patch">3.2 热插拔适配：Monkey Patch</a></li><li><a href="#33-custom-op将性能关键路径下沉为标准算子">3.3 Custom Op：将性能关键路径下沉为标准算子</a></li><li><a href="#34-ir从算子注册走向计算图与后端解耦">3.4 IR：从算子注册走向计算图与后端解耦</a></li><li><a href="#35-从支持模型到组合计算原语">3.5 从“支持模型”到“组合计算原语”</a></li></ol></li><li><a href="#4-适配的边界为什么仍然需要特化-kernel">4. 适配的边界：为什么仍然需要特化 Kernel？</a><ol class="lv3"><li><a href="#41-抽象机制解决了什么问题">4.1 抽象机制解决了什么问题？</a></li><li><a href="#42-抽象机制解决不了什么问题">4.2 抽象机制解决不了什么问题？</a></li><li><a href="#43-通用算子与特化算子的永恒博弈">4.3 通用算子与特化算子的永恒博弈</a></li></ol></li><li><a href="#5-一个新模型接入-vllm-的完整路径">5. 一个新模型接入 vLLM 的完整路径</a><ol class="lv3"><li><a href="#51-模型差异分析与复用决策">5.1 模型差异分析与复用决策</a></li><li><a href="#52-实现模型结构与权重装配">5.2 实现模型结构与权重装配</a></li><li><a href="#53-打通单卡最小可运行路径">5.3 打通单卡最小可运行路径</a></li><li><a href="#54-适配运行时状态与-attention-执行">5.4 适配运行时状态与 Attention 执行</a></li><li><a href="#55-注册模型并验证端到端执行">5.5 注册模型并验证端到端执行</a></li><li><a href="#56-扩展并行量化和其他高级能力">5.6 扩展并行、量化和其他高级能力</a></li><li><a href="#57-性能分析与选择性特化">5.7 性能分析与选择性特化</a></li><li><a href="#58-正确性性能与分布式验收">5.8 正确性、性能与分布式验收</a></li><li><a href="#59-推荐的接入顺序与发布门槛">5.9 推荐的接入顺序与发布门槛</a></li></ol></li><li><a href="#6-实际案例分析deepseek架构的工程适配">6. 实际案例分析：DeepSeek架构的工程适配</a><ol class="lv3"><li><a href="#61-mla从注意力优化到-kv-cache-协议扩展">6.1 MLA：从注意力优化到 KV Cache 协议扩展</a></li><li><a href="#62-moe从静态执行图到动态专家路由">6.2 MoE：从静态执行图到动态专家路由</a></li><li><a href="#63-mtp从单步生成到可验证的多步执行">6.3 MTP：从单步生成到可验证的多步执行</a></li><li><a href="#64-deepseek-架构接入的边界拆解">6.4 DeepSeek 架构接入的边界拆解</a></li><li><a href="#65-三层架构通用层特化层与验证层">6.5 三层架构：通用层、特化层与验证层</a></li><li><a href="#66-小结deepseek-接入的本质">6.6 小结：DeepSeek 接入的本质</a></li></ol></li><li><a href="#7-总结推理引擎适配能力的本质">7. 总结：推理引擎适配能力的本质</a><ol class="lv3"><li><a href="#71-模型层运行时层与算子层的三层适配模型">7.1 模型层、运行时层与算子层的三层适配模型</a></li><li><a href="#72-推理引擎的核心竞争力">7.2 推理引擎的核心竞争力</a></li><li><a href="#73-从模型适配到模型与引擎共演进">7.3 从模型适配到模型与引擎共演进</a></li></ol></li></ol></details>
+<h2 id="1-痛点为什么推理引擎必须持续适配新模型">1. 痛点：为什么推理引擎必须持续适配新模型？</h2>
+<h3 id="11-模型算法同质化与工程实现异构化">1.1 模型算法同质化与工程实现异构化</h3>
+<p>LLM 模型在算法上高度同质，都是基于 Transformer模型，围绕以下组件构建：</p>
+<ul>
+<li>Embedding；</li>
+<li>Transformer Block；</li>
+<li>Attention；</li>
+<li>Feed-Forward Network；</li>
+<li>Normalization；</li>
+<li>LM Head。</li>
+</ul>
+<p>但模型的工程实现上却是高度异构化：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">差异示例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Attention</td>
+<td style="text-align: left;">MHA / GQA / MQA / MLA / Sliding Window</td>
+</tr>
+<tr>
+<td style="text-align: left;">位置编码</td>
+<td style="text-align: left;">RoPE / ALiBi / Learned / NTK-RoPE</td>
+</tr>
+<tr>
+<td style="text-align: left;">归一化</td>
+<td style="text-align: left;">LayerNorm / RMSNorm、Pre-Norm / Post-Norm，位置与数量都可能不同</td>
+</tr>
+<tr>
+<td style="text-align: left;">MLP</td>
+<td style="text-align: left;">Dense / MoE / Switch / Top-K routing</td>
+</tr>
+<tr>
+<td style="text-align: left;">激活函数</td>
+<td style="text-align: left;">GELU / SiLU / SwiGLU / GeGLU</td>
+</tr>
+<tr>
+<td style="text-align: left;">KV Cache 格式</td>
+<td style="text-align: left;">Full KV / Latent（MLA）/ State（Mamba）</td>
+</tr>
+<tr>
+<td style="text-align: left;">特殊头</td>
+<td style="text-align: left;">MTP Head / EAGLE Head / Medusa Head</td>
+</tr>
+</tbody>
+</table>
+<p>难点不在"差异多"，而在<strong>每一种差异都会往下捅穿好几层</strong>：</p>
+<ul>
+<li>换 Attention 变体 → 影响 Attention Kernel <strong>和</strong> KV Cache 布局</li>
+<li>换 KV Cache 格式 → 影响显存管理 <strong>和</strong> 调度策略（Mamba 的 state 根本不是块状的）</li>
+<li>加特殊头 → 影响采样、调度预算 <strong>和</strong> KV 回滚逻辑（见第 7.4.3 节）</li>
+<li>引入 MoE → 影响路由、Token Dispatch、通信和负载均衡</li>
+<li>改变权重布局 → 影响加载、量化和张量并行</li>
+</ul>
+<p>而新架构的发布频率是<strong>周级</strong>的。所以真正的问题是：<strong>如何在不动 Continuous Batching + PagedAttention 这套通用框架的前提下，容纳每个模型的特殊计算路径。</strong></p>
+<h3 id="12-新模型差异如何向下游扩散">1.2 新模型差异如何向下游扩散？</h3>
+<p>一个新模型接入推理引擎时，影响通常可以分为三个层次。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层次</th>
+<th style="text-align: left;">主要内容</th>
+<th style="text-align: left;">典型问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">模型层</td>
+<td style="text-align: left;">网络结构、权重、配置</td>
+<td style="text-align: left;">如何加载权重？如何表示模型结构？</td>
+</tr>
+<tr>
+<td style="text-align: left;">运行时层</td>
+<td style="text-align: left;">调度、KV Cache、并行</td>
+<td style="text-align: left;">如何执行动态 Batch？如何管理显存？</td>
+</tr>
+<tr>
+<td style="text-align: left;">算子层</td>
+<td style="text-align: left;">Attention、MoE、量化 Kernel</td>
+<td style="text-align: left;">如何获得足够的吞吐和延迟？</td>
+</tr>
+</tbody>
+</table>
+<p>理想情况下，模型层只需要调用运行时提供的通用能力，运行时层则通过标准算子完成执行。但现实中的新模型经常会突破既有假设，导致修改从模型层一路传递到 Kernel 层。</p>
+<p>以标准 Attention 为例，其基本路径可以抽象为：</p>
+<pre><code>Q、K、V  ↓QKᵀ  ↓Scale 与 Mask  ↓Softmax  ↓与 V 相乘  ↓输出</code></pre>
+<p>而在实际推理系统中，还需要同时考虑：</p>
+<ul>
+<li>当前请求处于 Prefill 还是 Decode；</li>
+<li>Batch 中每条序列的长度是否相同；</li>
+<li>KV Cache 是否分页存储；</li>
+<li>是否启用张量并行或流水线并行；</li>
+<li>是否使用量化；</li>
+<li>是否存在特殊的位置编码；</li>
+<li>当前硬件适合哪一种 Kernel。</li>
+</ul>
+<p>因此，推理引擎适配的难点并不是“把论文公式翻译成代码”，而是：</p>
+<blockquote>
+<p>将模型的计算语义，准确映射到一个动态、异步、分布式且高度优化的执行系统中。</p>
+</blockquote>
+<h3 id="13-推理引擎适配的核心目标">1.3 推理引擎适配的核心目标</h3>
+<p>一个成熟的模型适配方案通常需要同时满足四个目标：</p>
+<ol type="1">
+<li><strong>正确性</strong>：模型输出应与参考实现一致；</li>
+<li><strong>性能</strong>：不能因为复用抽象而损失关键路径性能；</li>
+<li><strong>可维护性</strong>：模型特化逻辑不能污染整个运行时；</li>
+<li><strong>可扩展性</strong>：新模型能够复用已有的执行原语。</li>
+</ol>
+<p>这四个目标之间并不总是一致。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">方案</th>
+<th style="text-align: right;">灵活性</th>
+<th style="text-align: right;">性能</th>
+<th style="text-align: right;">可维护性</th>
+<th style="text-align: left;">适用场景</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">完全复用通用实现</td>
+<td style="text-align: right;">高</td>
+<td style="text-align: right;">中</td>
+<td style="text-align: right;">高</td>
+<td style="text-align: left;">结构接近已有模型</td>
+</tr>
+<tr>
+<td style="text-align: left;">模型专用 Python 逻辑</td>
+<td style="text-align: right;">高</td>
+<td style="text-align: right;">中低</td>
+<td style="text-align: right;">中低</td>
+<td style="text-align: left;">快速验证和早期接入</td>
+</tr>
+<tr>
+<td style="text-align: left;">Custom Op</td>
+<td style="text-align: right;">中</td>
+<td style="text-align: right;">高</td>
+<td style="text-align: right;">中高</td>
+<td style="text-align: left;">性能关键算子</td>
+</tr>
+<tr>
+<td style="text-align: left;">专用 Kernel 与运行时改造</td>
+<td style="text-align: right;">低</td>
+<td style="text-align: right;">很高</td>
+<td style="text-align: right;">中</td>
+<td style="text-align: left;">范式级模型创新</td>
+</tr>
+</tbody>
+</table>
+<p>适配工作的本质，就是在这几个目标之间找到合理的工程折中。</p>
+<h2 id="2-vllm-的核心抽象从模型接入到运行时执行">2. vLLM 的核心抽象：从模型接入到运行时执行</h2>
+<p>在前一节中我们讨论过，模型变化往往会跨层扩散：模型结构会影响状态表示，状态表示会影响执行方式，执行方式又会进一步影响缓存、调度和性能优化。</p>
+<p>vLLM 应对这一问题的方式，并不是建立一个包含所有模型逻辑的超大基类，而是根据不同问题的变化边界，建立一组相互衔接但职责相对独立的抽象：</p>
+<pre><code>配置语义  → 模型发现  → 能力契约  → 模型实例化与权重装配  → 运行时调度  → 执行编排  → Attention / Kernel 执行</code></pre>
+<p>从整体上看，vLLM 的模型接入与运行时执行可以抽象为下面这条链路：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923181239589。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923181239589.png</code></figcaption></figure></p>
+<p>这张图可以分成两个相对独立的部分：</p>
+<ul>
+<li><strong>模型接入链路</strong>：<code>ModelConfig → ModelRegistry → ModelLoader → Loaded model</code>；</li>
+<li><strong>运行时执行链路</strong>：<code>Scheduler → Worker → ModelRunner → Attention Backend → Kernel</code>。</li>
+</ul>
+<p>二者通过加载完成的模型实例、运行时协议和输入状态连接起来。模型代码主要描述“模型如何计算”，运行时组件则负责“在动态请求环境中如何组织这次计算”。</p>
+<h3 id="21-配置语义modelconfig-将外部参数收敛为执行意图">2.1 配置语义：<code>ModelConfig</code> 将外部参数收敛为执行意图</h3>
+<p>新模型接入的第一步并不是直接编写模型代码，而是先明确：</p>
+<blockquote>
+<p>这个模型是什么，以及系统准备以什么方式运行它？</p>
+</blockquote>
+<p>vLLM 通过 <code>ModelConfig</code> 对外部参数和 Hugging Face 配置进行统一解释。它通常需要处理：</p>
+<ul>
+<li>模型架构信息，例如 <code>architectures</code>、<code>model_type</code>；</li>
+<li>runner 类型，例如 generate、pooling、draft；</li>
+<li>输出或转换类型，例如 embed、classify、none；</li>
+<li>dtype、量化和并行配置；</li>
+<li>最大上下文长度；</li>
+<li>tokenizer 和多模态相关配置；</li>
+<li>模型是否具备某些运行能力或限制。</li>
+</ul>
+<p>可以将这一过程表示为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923151113740。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923151113740.png</code></figcaption></figure></p>
+<p><code>ModelConfig</code> 的价值不在于简单保存参数，而在于完成一次<strong>语义收敛</strong>：</p>
+<pre><code>外部配置、命令行参数、模型元数据  
+↓        统一的执行意图</code></pre>
+<p>后续模块拿到的不是一组零散参数，而是已经具有统一含义的配置对象。这样可以避免 registry、loader、runner 分别重新解释同一组参数，减少重复判断和冲突分支。</p>
+<p>需要注意的是，<code>ModelConfig</code> 的职责是描述：</p>
+<blockquote>
+<p>“应该以什么方式运行这个模型。”</p>
+</blockquote>
+<p>它不负责：</p>
+<ul>
+<li>选择并实例化具体模型对象；</li>
+<li>读取和装配 checkpoint；</li>
+<li>组织某一轮请求执行；</li>
+<li>选择具体 attention kernel。</li>
+</ul>
+<p>这些职责分别由后续抽象承担。</p>
+<h3 id="22-模型发现modelregistry-负责定位实现">2.2 模型发现：<code>ModelRegistry</code> 负责定位实现</h3>
+<p>当系统已经知道模型的架构语义和运行方式后，下一步是确定：</p>
+<blockquote>
+<p>应该使用哪个模型实现类？</p>
+</blockquote>
+<p>这就是 <code>ModelRegistry</code> 的职责。它将配置中识别出的架构名称映射到具体的模型实现，通常支持以下机制：</p>
+<ul>
+<li>内置模型映射；</li>
+<li>运行时注册；</li>
+<li>外部模块或插件注册；</li>
+<li><code>module:class</code> 形式的懒加载；</li>
+<li>auto 模式下的回退策略。</li>
+</ul>
+<p>其基本数据流可以表示为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923151057007。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923151057007.png</code></figcaption></figure></p>
+<p>在工程上，模型检查和模型解析通常可以分成两个阶段：</p>
+<ul>
+<li><code>inspect_model_cls</code>：在模型真正实例化之前，检查模型能力、接口或元信息；</li>
+<li><code>resolve_model_cls</code>：真正获取并返回用于实例化的模型类。</li>
+</ul>
+<p>这种“两阶段”设计能够避免在仅需要判断模型能力时，就提前导入、初始化或执行大量模型相关逻辑。</p>
+<p>这里需要明确一个常见误区：</p>
+<blockquote>
+<p><code>ModelRegistry</code> 负责“找到谁”，而不是负责“怎么跑”。</p>
+</blockquote>
+<p>它通常不负责：</p>
+<ul>
+<li>创建完整模型对象；</li>
+<li>读取 checkpoint；</li>
+<li>将权重写入参数；</li>
+<li>管理设备侧模型生命周期；</li>
+<li>处理请求级 batch 和 KV cache。</li>
+</ul>
+<p>这些工作分别属于 <code>ModelLoader</code>、<code>Worker</code> 和 <code>ModelRunner</code>。</p>
+<p>因此，Registry 更接近一个<strong>模型实现路由层</strong>，而不是完整的模型生命周期管理器。</p>
+<h3 id="23-能力契约nnmodule-加-protocol而不是统一继承树">2.3 能力契约：<code>nn.Module</code> 加 Protocol，而不是统一继承树</h3>
+<p>模型类被找到之后，还需要回答另一个问题：</p>
+<blockquote>
+<p>不同模型如何接入统一运行时，同时避免被一棵庞大的继承树束缚？</p>
+</blockquote>
+<p>vLLM 的模型抽象更接近：</p>
+<pre><code>PyTorch nn.Module        +能力协议（Protocol / capability contract）</code></pre>
+<p>底层要求模型具备 <code>torch.nn.Module</code> 的基础能力，包括：</p>
+<ul>
+<li>参数注册；</li>
+<li><code>state_dict</code>；</li>
+<li>device 迁移；</li>
+<li>train/eval 状态；</li>
+<li>与 PyTorch 工具链的兼容性。</li>
+</ul>
+<p>在此基础上，上层再通过 Protocol 或类似能力契约描述运行时所需的能力，例如：</p>
+<ul>
+<li>文本生成；</li>
+<li>pooling；</li>
+<li>embedding；</li>
+<li>classification；</li>
+<li>speculative decoding；</li>
+<li>多模态输入；</li>
+<li>特殊 attention；</li>
+<li>混合架构或状态缓存；</li>
+<li>量化、LoRA 等扩展能力。</li>
+</ul>
+<p>概念上可以表示为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150959916。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150959916.png</code></figcaption></figure></p>
+<p>这种设计带来两个主要好处。</p>
+<p><strong>第一，兼容已有实现。</strong></p>
+<p>模型不必为了接入 vLLM 而重构成某个复杂的继承体系，只要实现运行时真正需要的能力即可。</p>
+<p><strong>第二，能力可以组合。</strong></p>
+<p>一个模型可以同时支持生成、多模态和 speculative decoding，也可以只实现 pooling 或 embedding，而不必被迫继承一条包含无关方法的基类链。</p>
+<p>因此，这里的统一并不一定意味着所有模型具有完全相同的 Python <code>forward</code> 签名。更准确地说，统一的是：</p>
+<ul>
+<li>输入和输出的语义；</li>
+<li>运行时所依赖的能力；</li>
+<li>模型与执行器之间的契约。</li>
+</ul>
+<p>而不是强制所有模型在源码层面使用完全相同的参数列表。</p>
+<h3 id="24-模型落地modelloader-与-weightsmapper">2.4 模型落地：<code>ModelLoader</code> 与 <code>WeightsMapper</code></h3>
+<p>找到模型类并不意味着模型已经可以运行。实际接入中最容易出错的部分之一，是 checkpoint 权重如何正确装配到模型参数中。</p>
+<p>vLLM 将模型初始化和权重装配集中到 loader 相关抽象中。概念上的加载流程如下：</p>
+<pre><code>解析模型类  → 初始化模型结构  → 读取 checkpoint  → 权重名称映射  → 参数拆分或合并  → 并行切分  → 参数加载  → 量化及加载后处理  → 设备侧整理</code></pre>
+<p>可以表示为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150940050。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150940050.png</code></figcaption></figure></p>
+<p><code>WeightsMapper</code> 的作用不只是简单重命名。实际加载过程可能同时包含以下几类转换。</p>
+<p>1、参数命名差异：checkpoint 中的 key 与模型实现中的参数名可能不同，需要进行重命名或前缀转换。</p>
+<p>2、参数结构差异：一个 checkpoint tensor 可能需要：</p>
+<ul>
+<li>拆分成多个模型参数；</li>
+<li>与其他 tensor 合并；</li>
+<li>对 QKV、gate/up projection 等结构进行特殊处理；</li>
+<li>根据模型实现调整参数排列方式。</li>
+</ul>
+<p>3、并行切分差异：在 tensor parallel 或 pipeline parallel 场景下，checkpoint 中的完整权重需要按照运行时并行策略切分到不同设备或不同 rank。</p>
+<p>4、量化和设备布局差异：权重加载还可能涉及：</p>
+<ul>
+<li>packed weight；</li>
+<li>量化权重格式；</li>
+<li>特殊 dtype；</li>
+<li>延迟初始化；</li>
+<li>设备侧布局转换；</li>
+<li>加载后量化处理。</li>
+</ul>
+<p>因此，更准确的表述是：</p>
+<blockquote>
+<p><code>WeightsMapper</code> 及模型特定的权重加载逻辑，负责将外部 checkpoint 表示转换为运行时参数表示。这个过程可能同时包含重命名、拆分合并、并行切分、量化适配和设备布局转换。</p>
+</blockquote>
+<p>这也是为什么许多表面上看起来像“推理错误”的问题，实际上可能源于权重装配错误。将加载过程隔离出来，有助于把问题区分为：</p>
+<pre><code>模型结构问题权重映射问题运行时执行问题kernel 或硬件问题</code></pre>
+<p>从而降低排障复杂度。</p>
+<h3 id="25-运行时执行边界worker--modelrunner">2.5 运行时执行边界：<code>Worker + ModelRunner</code></h3>
+<p>前面几节关注的是模型如何被识别、实现和加载。从这里开始，讨论模型如何在动态请求环境中运行。</p>
+<p>模型类本身不应该直接感知：</p>
+<ul>
+<li>请求何时进入或退出；</li>
+<li>当前 batch 如何变化；</li>
+<li>每个请求本轮推进多少 token；</li>
+<li>KV cache 如何分配和释放；</li>
+<li>prefill、decode 和 speculative decoding 如何协同；</li>
+<li>当前设备采用哪种执行策略。</li>
+</ul>
+<p>这些运行时复杂度主要由 <code>Worker + ModelRunner</code> 承接。</p>
+<p>可以将两者理解为一个整体的执行边界：</p>
+<pre><code>Scheduler  
+↓Worker  
+↓ModelRunner  
+↓Model / Attention / Kernel</code></pre>
+<p>其中：</p>
+<h4 id="251-worker">2.5.1 <code>Worker</code></h4>
+<p><code>Worker</code> 处在执行器和设备运行环境之间，负责承接上层调度结果，并管理设备侧的执行上下文和生命周期。它通常参与：</p>
+<ul>
+<li>接收调度器输出；</li>
+<li>初始化和维护 <code>ModelRunner</code>；</li>
+<li>管理设备执行环境；</li>
+<li>协调 KV cache 和其他运行时状态；</li>
+<li>发起一次模型执行；</li>
+<li>将执行结果返回给上层。</li>
+</ul>
+<h4 id="252-modelrunner">2.5.2 <code>ModelRunner</code></h4>
+<p><code>ModelRunner</code> 更关注单步执行编排，包括：</p>
+<ul>
+<li>组织输入 token；</li>
+<li>准备 position；</li>
+<li>组织 batch 和 token layout；</li>
+<li>准备 KV cache 引用；</li>
+<li>构造 attention metadata；</li>
+<li>调用模型 forward；</li>
+<li>计算 logits；</li>
+<li>执行采样、pooling 或其他后处理；</li>
+<li>封装统一的 <code>ModelRunnerOutput</code>。</li>
+</ul>
+<p>因此可以用下面的方式区分模型逻辑和系统逻辑：</p>
+<pre><code>模型类：    如何完成一次模型计算Worker / ModelRunner：    在当前动态系统状态下，如何组织这次计算</code></pre>
+<p>需要注意的是，二者的边界不是简单的文件边界。实际工程中，RoPE、mask、position、KV 访问和部分输入预处理，可能由模型层、attention 层、ModelRunner 或 backend 共同承担。更准确的划分方式，是依据数据语义和稳定契约，而不是依据某段代码位于哪个文件。</p>
+<h3 id="26-执行计划输入scheduleroutput">2.6 执行计划输入：<code>SchedulerOutput</code></h3>
+<p><code>Worker + ModelRunner</code> 的第一个重要输入，是 Scheduler 生成的 <code>SchedulerOutput</code>。</p>
+<p>它可以被理解为：</p>
+<blockquote>
+<p>Scheduler 针对当前 step 生成的结构化执行计划。</p>
+</blockquote>
+<p><code>SchedulerOutput</code> 面向的是调度语义，主要描述：</p>
+<ul>
+<li>本轮需要处理哪些请求；</li>
+<li>每个请求需要推进多少 token；</li>
+<li>请求处于何种执行阶段；</li>
+<li>哪些请求需要进行 prefill 或 decode；</li>
+<li>是否包含 speculative decoding 相关 token；</li>
+<li>是否有 encoder 或多模态输入；</li>
+<li>哪些请求已经完成；</li>
+<li>哪些 KV 或 encoder 状态需要创建、更新或释放。</li>
+</ul>
+<p>数据流可以表示为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150919237。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150919237.png</code></figcaption></figure></p>
+<p><code>SchedulerOutput</code> 的重要性在于，它将调度决策从具体执行方式中分离出来：</p>
+<pre><code>Scheduler 决定：    这一轮处理谁、处理多少ModelRunner 决定：    如何将这个计划组织成设备侧计算</code></pre>
+<p>从运行时数据协议的角度看，<code>SchedulerOutput</code> 可以被称为一种 step-level IR，即每一步的执行计划。但这里的 IR 主要是“运行时结构化协议”的含义，并不等同于编译器意义上的完整中间表示。</p>
+<p>它不应该直接描述：</p>
+<ul>
+<li>某个具体 kernel 的调用方式；</li>
+<li>某种硬件的线程布局；</li>
+<li>某个 attention backend 的内部数据结构；</li>
+<li>模型实现的具体 forward 细节。</li>
+</ul>
+<p>这些信息应在执行侧进一步细化。</p>
+<h3 id="27-从执行计划到算子输入attention-metadata">2.7 从执行计划到算子输入：<code>Attention Metadata</code></h3>
+<p><code>Attention Metadata</code> 与 <code>SchedulerOutput</code> 有关，但二者并不是同一层次的对象。</p>
+<p>更准确地说：</p>
+<blockquote>
+<p><code>SchedulerOutput</code> 是 Scheduler 面向执行器产生的高层执行计划；<code>Attention Metadata</code> 则是 ModelRunner 根据该计划、当前 KV cache 状态和 backend 需求构造出的 attention 算子输入描述。</p>
+</blockquote>
+<p>其构造过程可以表示为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150858182。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150858182.png</code></figcaption></figure></p>
+<p>Attention metadata 可能包含：</p>
+<ul>
+<li>query 起点；</li>
+<li>每个序列的长度；</li>
+<li><code>seq_lens</code>；</li>
+<li><code>block_table</code>；</li>
+<li><code>slot_mapping</code>；</li>
+<li>prefill/decode 边界；</li>
+<li>token 到 KV block 的映射；</li>
+<li>局部 attention、滑动窗口或其他 attention 模式所需的信息；</li>
+<li>特定 backend 所需的布局和执行参数。</li>
+</ul>
+<p>它的作用是把高层运行时状态转换成 attention kernel 可以理解的形式：</p>
+<pre><code>请求级调度状态  
+↓token 与 KV 的逻辑关系  
+↓attention kernel 的输入布局</code></pre>
+<p>因此，<code>Attention Metadata</code> 并不是调度器的原始输出，也不是模型结构本身的一部分。它是执行侧的适配层，负责连接：</p>
+<pre><code>SchedulerOutput    → ModelRunner    → AttentionMetadataBuilder    → Attention Metadata    → Attention Backend</code></pre>
+<p>三者的职责可以压缩为：</p>
+<pre><code>SchedulerOutput 决定这一轮执行什么；ModelRunner 决定如何组织这次执行；Attention Metadata 描述 attention 应该看见什么。</code></pre>
+<p>这也是 vLLM 能够演进调度策略而不必频繁修改模型定义的重要原因之一。只要调度器仍然通过稳定的执行协议表达计划，执行侧就可以将新的调度策略转换为对应的 metadata 和输入布局。</p>
+<h3 id="28-模型计算与-attention-backend从语义到-kernel">2.8 模型计算与 Attention Backend：从语义到 Kernel</h3>
+<p>在 ModelRunner 准备好输入和 attention metadata 后，系统进入模型计算阶段。</p>
+<p>模型逻辑层主要负责表达模型本身的计算语义，例如：</p>
+<ul>
+<li>token embedding；</li>
+<li>position embedding 或 RoPE；</li>
+<li>Transformer block；</li>
+<li>attention；</li>
+<li>MLP；</li>
+<li>residual connection；</li>
+<li>logits；</li>
+<li>pooling 或分类表示。</li>
+</ul>
+<p>Attention Backend 则负责把 attention 语义映射到具体执行实现。它通常需要处理：</p>
+<ul>
+<li>paged KV cache；</li>
+<li>prefill 和 decode；</li>
+<li>不同 batch 和 sequence layout；</li>
+<li>MLA 或其他特殊 attention；</li>
+<li>混合 attention；</li>
+<li>不同硬件平台；</li>
+<li>不同 dtype 和 kernel 实现。</li>
+</ul>
+<p>可以将这一层表示为：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150826145。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150826145.png</code></figcaption></figure></p>
+<p>需要对“算子选择”作一个更精确的描述。</p>
+<p>ModelRunner 通常负责准备执行上下文和 metadata；具体 attention 层或 backend 再根据：</p>
+<ul>
+<li>attention 类型；</li>
+<li>prefill/decode 模式；</li>
+<li>metadata 中的布局；</li>
+<li>dtype；</li>
+<li>head dimension；</li>
+<li>硬件能力；</li>
+<li>backend 支持情况；</li>
+</ul>
+<p>选择合适的具体实现。</p>
+<p>因此，Attention Backend 不是一个简单的算子实现集合，而是一个包含以下职责的执行适配层：</p>
+<pre><code>模型声明 attention 需求  
+↓ModelRunner 提供本轮执行 metadata  
+↓Backend 判断可用实现  
+↓选择并调用具体 kernel</code></pre>
+<p>模型代码因此不需要直接绑定某个硬件平台或某个具体 attention kernel。模型接入主要关注“attention 的语义”，而硬件后端负责“如何高效执行这个语义”。</p>
+<h3 id="29-横切抽象kvtokenizer多模态与插件">2.9 横切抽象：KV、Tokenizer、多模态与插件</h3>
+<p>前面的内容构成了主执行链路。但一个模型能否稳定上线，还取决于若干横切抽象。</p>
+<h4 id="291-kv-cache-抽象">2.9.1 KV Cache 抽象</h4>
+<p>KV cache 不应绑定到某个模型实现，而应作为独立的运行时状态管理机制。</p>
+<p>相关抽象通常需要统一：</p>
+<ul>
+<li>cache 分组；</li>
+<li>layer 级缓存；</li>
+<li>block 布局；</li>
+<li>dtype；</li>
+<li>初始化；</li>
+<li>分配、更新与释放；</li>
+<li>paged cache 访问；</li>
+<li>hybrid attention 的缓存管理。</li>
+</ul>
+<p>可以将其理解为：</p>
+<pre><code>模型只声明需要什么状态；KV 系统负责状态如何分配、保存和访问。</code></pre>
+<p>不过，这里需要保留一个边界意识：</p>
+<blockquote>
+<p>KV cache 抽象统一的是缓存管理和访问语义，并不意味着所有模型内部状态都能无差别地表示为传统 K/V tensor。</p>
+</blockquote>
+<p>对于 Mamba 类或混合架构，系统可能还需要支持 state cache、循环状态或其他形式的持久化执行状态。因此，KV/cache 抽象应当被理解为更广义的<strong>推理状态管理协议</strong>。</p>
+<h4 id="292-tokenizer-registry">2.9.2 Tokenizer Registry</h4>
+<p>Tokenizer Registry 将 tokenizer 的特殊处理从模型执行路径中解耦出来，可以承接：</p>
+<ul>
+<li>tokenizer mode；</li>
+<li>专有 tokenizer 实现；</li>
+<li>truncation 方向；</li>
+<li>chat template；</li>
+<li>特殊 token；</li>
+<li>tokenizer 与模型配置之间的差异。</li>
+</ul>
+<p>这样，新增 tokenizer 模式时，不必在每个模型实现中复制条件分支。</p>
+<h4 id="293-multimodal-registry">2.9.3 MultiModal Registry</h4>
+<p>多模态模型的复杂性往往不只来自模型结构，还来自输入预处理链。MultiModal Registry 可以将模型类与具体 processor 松耦合，承接：</p>
+<ul>
+<li>图片、视频、音频等输入处理；</li>
+<li>多模态特征提取；</li>
+<li>模态特征与文本 token 的对齐；</li>
+<li>encoder 输入组织；</li>
+<li>不同模型所需的 processor 工厂。</li>
+</ul>
+<p>其核心思想是：</p>
+<pre><code>模型结构演进        与多模态数据处理演进        相互解耦</code></pre>
+<h4 id="294-plugin--extension-机制">2.9.4 Plugin / Extension 机制</h4>
+<p>随着模型、硬件和采样策略不断增加，仅依靠核心代码内置实现会导致系统越来越庞大。因此，插件机制可以进一步支持外部注册和扩展，例如：</p>
+<ul>
+<li>模型实现；</li>
+<li>自定义 layer；</li>
+<li>attention backend；</li>
+<li>tokenizer；</li>
+<li>多模态 processor；</li>
+<li>sampler；</li>
+<li>量化实现；</li>
+<li>输出处理逻辑。</li>
+</ul>
+<p>插件机制的价值在于：</p>
+<blockquote>
+<p>在不修改核心执行路径的前提下，为系统增加新的模型能力或硬件能力。</p>
+</blockquote>
+<p>不过，插件并不是对所有内部对象开放任意修改，而应建立在清晰的注册点和稳定契约之上。否则，插件只会把核心系统中的隐式耦合转移到外部。</p>
+<h3 id="210-动态运行时与静态执行图抽象边界的性能代价">2.10 动态运行时与静态执行图：抽象边界的性能代价</h3>
+<p>运行时抽象提高了灵活性，但也会增加编译优化和图捕获的难度。</p>
+<p>动态推理环境通常具有以下特征：</p>
+<ul>
+<li>batch size 持续变化；</li>
+<li>sequence length 持续变化；</li>
+<li>请求不断加入和退出；</li>
+<li>KV cache 地址不固定；</li>
+<li>prefill、decode 和 speculative decoding 路径不同；</li>
+<li>不同请求可能具有不同的执行阶段和输入布局。</li>
+</ul>
+<p>而编译器和图捕获机制通常更擅长处理：</p>
+<ul>
+<li>相对稳定的计算图；</li>
+<li>稳定或可预测的 tensor shape；</li>
+<li>明确的控制流；</li>
+<li>固定的内存布局；</li>
+<li>可重复执行的 kernel 序列。</li>
+</ul>
+<p>因此，vLLM 一类的推理引擎需要在动态调度和静态优化之间建立边界：</p>
+<pre><code>动态调度、灵活执行          ↕稳定计算片段、编译优化</code></pre>
+<p>一个重要的工程思想是：</p>
+<blockquote>
+<p>不是消除动态性，而是将动态性集中在运行时边界内，再把稳定部分下沉给编译器和硬件后端。</p>
+</blockquote>
+<p>例如，系统可以将动态因素保留在：</p>
+<ul>
+<li>Scheduler；</li>
+<li>Worker；</li>
+<li>ModelRunner；</li>
+<li>KV cache 状态；</li>
+<li>Attention Metadata；</li>
+<li>输入 buffer 和运行时参数。</li>
+</ul>
+<p>同时，将相对稳定的计算片段交给：</p>
+<ul>
+<li><code>torch.compile</code>；</li>
+<li>CUDA Graph；</li>
+<li>shape bucketing；</li>
+<li>kernel fusion；</li>
+<li>backend-specific graph capture。</li>
+</ul>
+<p>可以将这种分工表示为：</p>
+<pre><code>动态部分：    请求调度    batch 组织    token 数量    KV block 地址    执行路径选择静态部分：    稳定的模型子图    固定范围的 shape bucket    可复用的 kernel 序列    硬件相关的融合算子</code></pre>
+<p>因此，前文介绍的抽象不仅服务于代码可维护性，也服务于性能优化。<code>SchedulerOutput</code> 和 <code>Attention Metadata</code> 将动态状态显式化，使编译器和 kernel 不必理解完整的请求调度逻辑，而只需要消费结构化的运行时输入。</p>
+<h3 id="211-新模型接入时的判断路径">2.11 新模型接入时的判断路径</h3>
+<p>这套抽象的工程价值，最终体现在一个具体问题上：</p>
+<blockquote>
+<p>当新模型接入失败时，应该首先修改哪一层？</p>
+</blockquote>
+<p>可以按照变化来源进行判断。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">变化类型</th>
+<th style="text-align: left;">优先检查的层</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">模型架构无法识别</td>
+<td style="text-align: left;"><code>ModelConfig</code>、<code>ModelRegistry</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">runner 或输出类型判断错误</td>
+<td style="text-align: left;"><code>ModelConfig</code>、能力协议</td>
+</tr>
+<tr>
+<td style="text-align: left;">forward 或模型结构不兼容</td>
+<td style="text-align: left;">Model class、Protocol、Attention layer</td>
+</tr>
+<tr>
+<td style="text-align: left;">checkpoint 参数找不到</td>
+<td style="text-align: left;"><code>ModelLoader</code>、<code>WeightsMapper</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">QKV 或特殊权重加载错误</td>
+<td style="text-align: left;">模型特定加载逻辑、并行切分逻辑</td>
+</tr>
+<tr>
+<td style="text-align: left;">batch 或 token 数量异常</td>
+<td style="text-align: left;">Scheduler、<code>SchedulerOutput</code>、ModelRunner</td>
+</tr>
+<tr>
+<td style="text-align: left;">KV cache 行为异常</td>
+<td style="text-align: left;">KV cache 配置、状态管理、metadata builder</td>
+</tr>
+<tr>
+<td style="text-align: left;">attention 结果异常</td>
+<td style="text-align: left;">Attention Metadata、Attention layer、Backend</td>
+</tr>
+<tr>
+<td style="text-align: left;">tokenizer 输入异常</td>
+<td style="text-align: left;">Tokenizer Registry</td>
+</tr>
+<tr>
+<td style="text-align: left;">图片、视频等输入异常</td>
+<td style="text-align: left;">MultiModal Registry</td>
+</tr>
+<tr>
+<td style="text-align: left;">性能不稳定</td>
+<td style="text-align: left;">ModelRunner、Attention Backend、Graph Capture、编译配置</td>
+</tr>
+</tbody>
+</table>
+<p>也可以将接入过程概括为下面的判断顺序：</p>
+<pre><code>先确认模型是否被正确识别  
+↓再确认模型类和能力契约是否匹配  
+↓再确认 checkpoint 是否正确装配  
+↓再确认运行时输入和 KV 状态是否正确  
+↓最后检查 attention backend、编译和硬件性能</code></pre>
+<p>这样可以避免在模型尚未正确加载时，就直接从 kernel 或调度器开始排查。</p>
+<h3 id="212-小结动态性上浮静态性下沉">2.12 小结：动态性上浮，静态性下沉</h3>
+<p>vLLM 的核心设计可以概括为：</p>
+<blockquote>
+<p>配置层收敛执行意图，注册层定位模型实现，契约层表达模型能力，加载层隔离权重差异；Scheduler 生成执行计划，Worker 和 ModelRunner 组织动态执行，Attention Metadata 将运行时状态转换为算子输入，Attention Backend 再将模型语义映射到具体硬件 kernel。</p>
+</blockquote>
+<p>这里需要特别区分几个对象之间的关系：</p>
+<pre class="wider"><code>ModelConfig    表达“准备如何运行”ModelRegistry    决定“使用哪一个实现”ModelLoader / WeightsMapper    负责“如何把模型落地”SchedulerOutput    描述“这一轮执行什么”Worker / ModelRunner    负责“如何组织这次执行”Attention Metadata    描述“attention 应该看见什么”Attention Backend    决定“用什么 kernel 执行”</code></pre>
+<p>因此，<code>SchedulerOutput</code>、<code>Attention Metadata</code> 和 <code>ModelRunner</code> 并不是三个平行组件，而是一条逐级细化的数据流：</p>
+<pre><code>调度计划  → 执行编排  → Attention 输入描述  → Kernel 执行</code></pre>
+<p>这套架构背后的工程哲学可以进一步概括为：</p>
+<ol type="1">
+<li><strong>动态性上浮</strong> 将请求队列、调度策略、batch 变化和执行路径选择集中在 Scheduler、Worker、ModelRunner 及其运行时协议中。</li>
+<li><strong>静态性下沉</strong> 将稳定的模型计算、attention 子图和硬件相关 kernel 下沉给编译器、CUDA Graph 和 Attention Backend。</li>
+<li><strong>以契约连接两者</strong> 通过 Registry、Protocol、WeightsMapper、SchedulerOutput 和 Attention Metadata，在动态系统与静态算子之间建立稳定的数据和能力契约。</li>
+</ol>
+<p>最终，支持一个新模型不再意味着对整个推理引擎进行全栈修改，而是先判断变化发生在哪个边界：</p>
+<pre class="wider"><code>配置变化       → ModelConfig识别变化       → ModelRegistry能力变化       → Protocol / model class权重变化       → ModelLoader / WeightsMapper执行变化       → Scheduler / Worker / ModelRunner缓存变化       → KV cache / state managementAttention变化  → Metadata / Attention layer / Backend输入变化       → Tokenizer / MultiModal Registry性能变化       → Backend / Graph Capture / Compiler</code></pre>
+<p>这就是 vLLM 能够在保持高性能的同时快速支持新模型的关键：它并没有试图消除模型差异，而是将不同类型的差异放置到合适的抽象边界中，让模型逻辑、运行时调度、状态管理和硬件执行能够相对独立地演进。</p>
+<h2 id="3-适配机制的演进从临时补丁到编译化扩展">3. 适配机制的演进：从临时补丁到编译化扩展</h2>
+<h3 id="31-早期方式硬编码与模型专用实现">3.1 早期方式：硬编码与模型专用实现</h3>
+<p>最直接的适配方式，是为新模型增加一个专用实现。</p>
+<p>优点是：</p>
+<ul>
+<li>开发路径短；</li>
+<li>便于快速验证；</li>
+<li>可以直接表达模型特有逻辑。</li>
+</ul>
+<p>缺点也很明显：</p>
+<ul>
+<li>模型代码容易与运行时耦合；</li>
+<li>重复实现大量已有逻辑；</li>
+<li>难以复用现有 Kernel；</li>
+<li>后续维护成本高；</li>
+<li>不同模型之间容易形成分叉。</li>
+</ul>
+<p>这种方式适合模型早期接入，但不适合作为长期架构。</p>
+<h3 id="32-热插拔适配monkey-patch">3.2 热插拔适配：Monkey Patch</h3>
+<p>当模型已有实现，但某些模块暂时无法直接复用时，可以采用热插拔方式替换局部逻辑。</p>
+<p>例如：</p>
+<pre><code>原始模型实现  
+↓替换 Attention 模块  
+↓替换 RoPE 或 MLP  
+↓复用其余模型结构</code></pre>
+<p>这种方法可以降低重复代码，但通常存在以下问题：</p>
+<ul>
+<li>调用关系不够显式；</li>
+<li>依赖模块内部实现细节；</li>
+<li>不同版本之间容易失效；</li>
+<li>调试和性能分析较困难；</li>
+<li>不利于长期维护。</li>
+</ul>
+<p>因此，Monkey Patch 更适合过渡阶段，而不是稳定扩展接口。</p>
+<h3 id="33-custom-op将性能关键路径下沉为标准算子">3.3 Custom Op：将性能关键路径下沉为标准算子</h3>
+<p>当模型结构已经能够通过通用 Python 模块表达，但性能关键路径不足时，Custom Op 是更合理的方案。</p>
+<p>Custom Op 通常承担三类职责：</p>
+<ol type="1">
+<li>为 Python 层提供稳定接口；</li>
+<li>将计算转发给 CUDA、Triton 或其他后端；</li>
+<li>隐藏不同硬件后端之间的实现差异。</li>
+</ol>
+<p>典型调用路径如下：</p>
+<pre><code>Python Module  
+↓统一 Op 接口  
+↓后端 Dispatch  
+↓CUDA / Triton / CPU Kernel</code></pre>
+<p><strong>图 7-5 Custom Op 的分层结构</strong></p>
+<p>适合下沉为 Custom Op 的部分包括：</p>
+<ul>
+<li>Attention；</li>
+<li>RMSNorm；</li>
+<li>RoPE；</li>
+<li>Fused MLP；</li>
+<li>MoE Routing；</li>
+<li>Quantization；</li>
+<li>Sampling。</li>
+</ul>
+<p>需要强调的是，Custom Op 主要解决“算子如何高效执行”，并不自动解决：</p>
+<ul>
+<li>调度器如何组织请求；</li>
+<li>KV Cache 如何分配；</li>
+<li>多卡之间如何通信；</li>
+<li>MTP 如何回滚；</li>
+<li>不同执行阶段如何切换。</li>
+</ul>
+<p>当模型创新涉及这些运行时语义时，仅增加 Custom Op 通常是不够的。</p>
+<h3 id="34-ir从算子注册走向计算图与后端解耦">3.4 IR：从算子注册走向计算图与后端解耦</h3>
+<p>IR 可以看作位于模型表达和硬件执行之间的中间层。</p>
+<p>它不直接描述某块 GPU 上的具体线程布局，而是描述：</p>
+<ul>
+<li>计算操作；</li>
+<li>张量依赖；</li>
+<li>数据流关系；</li>
+<li>Shape 与布局约束；</li>
+<li>可融合或可重排的计算；</li>
+<li>后端执行需求。</li>
+</ul>
+<p>IR 驱动的模型执行路径：</p>
+<pre><code>模型代码  
+↓IR 表示  
+↓图变换与优化  
+↓后端 Kernel  
+↓硬件执行</code></pre>
+<p>相较于单纯的算子注册，IR 可以进一步支持：</p>
+<ul>
+<li>算子融合；</li>
+<li>内存访问重排；</li>
+<li>自动选择后端；</li>
+<li>静态与动态 Shape 的统一表达；</li>
+<li>不同硬件之间的代码生成；</li>
+<li>模型结构与 Kernel 实现解耦。</li>
+</ul>
+<p>不过，在推理系统中，IR 不能脱离动态运行时单独存在。它仍然需要与以下信息协同：</p>
+<ul>
+<li>动态 Batch；</li>
+<li>KV Cache Metadata；</li>
+<li>Prefill/Decode 阶段；</li>
+<li>并行拓扑；</li>
+<li>显存约束；</li>
+<li>请求优先级。</li>
+</ul>
+<p>因此，更现实的方向不是用静态编译完全替代动态调度，而是：</p>
+<blockquote>
+<p>由运行时决定执行计划，由 IR 和编译器优化计划中的计算部分。</p>
+</blockquote>
+<h3 id="35-从支持模型到组合计算原语">3.5 从“支持模型”到“组合计算原语”</h3>
+<p>当推理引擎将 Attention、MoE、MTP 等能力抽象为可组合的计算原语后，接入新模型就不再是从头实现整个网络，而是组合已有能力。</p>
+<pre><code>标准 Attention 原语        +标准 MoE 原语        +标准 RoPE 原语        +标准 KV Cache 原语  
+↓新的模型结构</code></pre>
+<p>这意味着模型适配的基本单位正在发生变化：</p>
+<pre><code>过去：适配一个完整模型现在：组合一组标准计算原语</code></pre>
+<p>但这种方法的前提是，模型创新仍然能够被现有原语表达。如果模型改变了原语本身的语义，或者改变了多个原语之间的协作方式，就需要扩大抽象边界。</p>
+<h2 id="4-适配的边界为什么仍然需要特化-kernel">4. 适配的边界：为什么仍然需要特化 Kernel？</h2>
+<h3 id="41-抽象机制解决了什么问题">4.1 抽象机制解决了什么问题？</h3>
+<p>通用抽象主要解决以下问题：</p>
+<ul>
+<li>统一模型加载流程；</li>
+<li>隔离模型结构与调度器；</li>
+<li>复用 KV Cache 管理；</li>
+<li>复用并行和通信机制；</li>
+<li>减少重复实现；</li>
+<li>提高新模型接入速度。</li>
+</ul>
+<p>对于结构接近已有模型的架构，抽象能够显著降低适配成本。</p>
+<h3 id="42-抽象机制解决不了什么问题">4.2 抽象机制解决不了什么问题？</h3>
+<p>当模型改变以下内容时，通用抽象可能会失效：</p>
+<ul>
+<li>数据表示方式；</li>
+<li>内存访问模式；</li>
+<li>算子融合边界；</li>
+<li>通信与计算的重叠方式；</li>
+<li>Decode 阶段的执行粒度；</li>
+<li>调度器与模型计算之间的关系。</li>
+</ul>
+<p>例如，某个模型使用特殊的低秩 KV 表示。此时，继续将它强行转换为标准 K/V，虽然可以复用已有 Attention 接口，但可能带来：</p>
+<ul>
+<li>额外的显存读写；</li>
+<li>额外的矩阵变换；</li>
+<li>更高的带宽压力；</li>
+<li>无法发挥模型设计本身的优势。</li>
+</ul>
+<p>这时，特化 Kernel 并不是“为了追求极限性能而过度优化”，而是模型语义变化后的必然结果。</p>
+<h3 id="43-通用算子与特化算子的永恒博弈">4.3 通用算子与特化算子的永恒博弈</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">通用实现</th>
+<th style="text-align: left;">特化实现</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">接入速度</td>
+<td style="text-align: left;">快</td>
+<td style="text-align: left;">慢</td>
+</tr>
+<tr>
+<td style="text-align: left;">模型复用</td>
+<td style="text-align: left;">强</td>
+<td style="text-align: left;">弱</td>
+</tr>
+<tr>
+<td style="text-align: left;">峰值性能</td>
+<td style="text-align: left;">中等</td>
+<td style="text-align: left;">高</td>
+</tr>
+<tr>
+<td style="text-align: left;">维护成本</td>
+<td style="text-align: left;">低</td>
+<td style="text-align: left;">高</td>
+</tr>
+<tr>
+<td style="text-align: left;">适配范围</td>
+<td style="text-align: left;">广</td>
+<td style="text-align: left;">窄</td>
+</tr>
+<tr>
+<td style="text-align: left;">对模型创新的支持</td>
+<td style="text-align: left;">有限</td>
+<td style="text-align: left;">强</td>
+</tr>
+</tbody>
+</table>
+<p>可以将适配边界概括为：</p>
+<blockquote>
+<p>当模型只改变“计算结构”时，通用抽象通常足够；当模型改变“数据流、内存流或执行流”时，就需要引入特化实现。</p>
+</blockquote>
+<h2 id="5-一个新模型接入-vllm-的完整路径">5. 一个新模型接入 vLLM 的完整路径</h2>
+<p>前文介绍了 vLLM 的核心抽象及其职责边界。这一节我们从工程实施角度说明<strong>当一个新模型需要接入 vLLM 时，应该按照什么顺序分析、实现、验证和优化。</strong></p>
+<p>从前面vLLM的核心抽象我们知道，新模型接入不是“新增一个模型类”这么简单。一个完整的接入过程，通常需要同时处理以下问题：</p>
+<pre class="wide"><code>模型是否可以复用现有实现  → 模型结构是否正确  → checkpoint 权重是否正确装配  → 单卡最小路径是否可运行  → KV Cache 和 Attention 是否正确  → 调度与执行链路是否贯通  → 并行、量化和高级能力是否可用  → 性能是否达到预期  → 正确性和分布式测试是否通过</code></pre>
+<p>一个重要原则是：<strong>先建立正确、可观察、可复现的最小实现，再逐步引入并行、量化、图捕获和特化算子等优化。</strong></p>
+<p>如果一开始就同时修改模型结构、权重加载、KV Cache、并行策略和 kernel，任何错误都会被多个变量掩盖，排障成本会显著上升。</p>
+<h3 id="51-模型差异分析与复用决策">5.1 模型差异分析与复用决策</h3>
+<p>接入新模型的第一步不是立即编写代码，而是确定新模型与现有实现之间的差异，以及这些差异会影响哪些层级。</p>
+<p>首先需要确认模型的基本形态：</p>
+<ul>
+<li>是 decoder-only、encoder-only 还是 encoder-decoder；</li>
+<li>是否支持标准文本生成、pooling、embedding 或分类；</li>
+<li>是否包含 encoder 输出缓存；</li>
+<li>是否使用标准 Transformer block；</li>
+<li>Attention 是 MHA、MQA、GQA、MLA，还是其他特殊形式；</li>
+<li>MLP 是标准 FFN、SwiGLU、MoE，还是其他结构；</li>
+<li>是否使用特殊位置编码、attention mask 或 position 计算；</li>
+<li>是否包含 speculative decoding、MTP 或其他多预测路径；</li>
+<li>是否支持多模态输入；</li>
+<li>是否包含 KV Cache 之外的 recurrent state 或其他持久化状态；</li>
+<li>checkpoint 的参数命名、布局和格式是否与现有实现兼容。</li>
+</ul>
+<p>可以先建立一张模型差异表：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">检查项</th>
+<th style="text-align: left;">现有实现</th>
+<th style="text-align: left;">新模型</th>
+<th style="text-align: left;">影响层级</th>
+<th style="text-align: left;">是否需要改造</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">模型架构</td>
+<td style="text-align: left;">decoder-only</td>
+<td style="text-align: left;">decoder-only</td>
+<td style="text-align: left;">Config / Model</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">Attention</td>
+<td style="text-align: left;">标准 MHA/GQA</td>
+<td style="text-align: left;">特殊 Attention</td>
+<td style="text-align: left;">Model / Backend</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">状态管理</td>
+<td style="text-align: left;">标准 K/V Cache</td>
+<td style="text-align: left;">压缩 KV 或 recurrent state</td>
+<td style="text-align: left;">Cache / Metadata</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">MLP</td>
+<td style="text-align: left;">Dense FFN</td>
+<td style="text-align: left;">MoE</td>
+<td style="text-align: left;">Model / Parallel</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">位置编码</td>
+<td style="text-align: left;">RoPE</td>
+<td style="text-align: left;">特殊 RoPE</td>
+<td style="text-align: left;">Model / Runner</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">输入形式</td>
+<td style="text-align: left;">纯文本</td>
+<td style="text-align: left;">文本加图像</td>
+<td style="text-align: left;">Tokenizer / Multimodal</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">输出结构</td>
+<td style="text-align: left;">单一 LM Head</td>
+<td style="text-align: left;">多预测头</td>
+<td style="text-align: left;">Runner / Sampling</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">权重命名</td>
+<td style="text-align: left;">与实现一致</td>
+<td style="text-align: left;">命名不同</td>
+<td style="text-align: left;">Loader / Mapper</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">权重布局</td>
+<td style="text-align: left;">标准布局</td>
+<td style="text-align: left;">融合或打包布局</td>
+<td style="text-align: left;">Loader / Quantization</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+<tr>
+<td style="text-align: left;">并行方式</td>
+<td style="text-align: left;">Tensor Parallel</td>
+<td style="text-align: left;">需要 Expert Parallel</td>
+<td style="text-align: left;">Distributed</td>
+<td style="text-align: left;">是/否</td>
+</tr>
+</tbody>
+</table>
+<p>差异分析的最终目标不是列出所有不同，而是做出接入决策。通常有三种结果：</p>
+<pre><code>A. 直接复用现有模型实现B. 复用公共模块，仅局部改造模型结构或权重加载C. 新增模型实现，并扩展运行时状态、执行协议或 backend</code></pre>
+<p>可以按照以下顺序判断：</p>
+<ol type="1">
+<li>新模型的计算图是否与现有模型基本一致；</li>
+<li>差异是否仅限于配置字段、模型名称或参数命名；</li>
+<li>差异是否可以由已有的 attention、MLP、MoE 或 position 模块表达；</li>
+<li>checkpoint 是否只需要增加映射规则；</li>
+<li>现有 <code>ModelRunner</code> 是否能够提供模型所需的输入；</li>
+<li>现有 KV Cache 或状态管理机制是否能够表示模型的推理状态；</li>
+<li>现有 Attention Backend 是否能够执行模型的 attention 语义；</li>
+<li>新模型是否需要新的并行、通信或输出协议。</li>
+</ol>
+<p>其中，应该尽量遵循：</p>
+<blockquote>
+<p>优先复用公共组件，局部适配模型差异；只有当现有抽象无法表达新模型语义时，才扩展运行时协议或底层 backend。</p>
+</blockquote>
+<p>这一阶段的产物应当是一份明确的接入设计，而不是一组尚未验证的代码改动。至少需要确定：</p>
+<ul>
+<li>复用哪些已有模块；</li>
+<li>新增哪些模型组件；</li>
+<li>是否需要新的权重映射；</li>
+<li>是否需要扩展能力协议；</li>
+<li>是否需要新的 cache/state 表示；</li>
+<li>是否需要新的 attention backend；</li>
+<li>首次接入版本只支持哪些能力；</li>
+<li>哪些能力留待后续扩展。</li>
+</ul>
+<h3 id="52-实现模型结构与权重装配">5.2 实现模型结构与权重装配</h3>
+<p>模型实现阶段需要解决两个相互关联但应当分开验证的问题：</p>
+<pre><code>模型结构实现：    forward 计算是否正确权重装配实现：    checkpoint 参数是否正确加载到模型结构</code></pre>
+<h4 id="521-模型结构实现">5.2.1 模型结构实现</h4>
+<p>模型类应首先正确描述模型本身的计算语义，包括：</p>
+<ul>
+<li>embedding；</li>
+<li>position 或 RoPE；</li>
+<li>attention；</li>
+<li>MLP 或 MoE；</li>
+<li>residual connection；</li>
+<li>normalization；</li>
+<li>logits；</li>
+<li>pooling 或其他输出头。</li>
+</ul>
+<p>实现时应尽量复用 vLLM 已有的公共组件，例如：</p>
+<ul>
+<li>线性层和并行线性层；</li>
+<li>attention 层；</li>
+<li>RMSNorm 或其他 normalization；</li>
+<li>RoPE；</li>
+<li>MoE 路由和 expert 模块；</li>
+<li>量化线性层；</li>
+<li>输出头；</li>
+<li>已有的输入和输出协议。</li>
+</ul>
+<p>如果新模型只是在层配置、激活函数或参数组织方式上存在差异，通常不应复制一整套已有实现，而应通过组合已有模块完成适配。</p>
+<p>模型实现还需要明确自身支持的能力。例如：</p>
+<ul>
+<li>是否支持文本生成；</li>
+<li>是否支持 pooling；</li>
+<li>是否支持多模态输入；</li>
+<li>是否支持 speculative decoding；</li>
+<li>是否需要特殊的 cache/state；</li>
+<li>是否需要特殊 attention metadata。</li>
+</ul>
+<p>这些能力应通过已有的能力契约或 Protocol 表达，而不是通过运行时对具体模型类进行大量类型判断。</p>
+<h4 id="522-权重装配">5.2.2 权重装配</h4>
+<p>权重加载通常需要处理以下转换：</p>
+<ul>
+<li>参数名称转换；</li>
+<li>前缀和模块路径转换；</li>
+<li>QKV 权重合并或拆分；</li>
+<li>gate/up projection 的合并或拆分；</li>
+<li>MoE expert 权重组织；</li>
+<li>Tensor Parallel 切分；</li>
+<li>Pipeline Parallel 所需的层分配；</li>
+<li>权重转置和重排；</li>
+<li>packed weight 或量化格式转换；</li>
+<li>scale、zero-point 等量化参数加载；</li>
+<li>加载后的设备布局转换。</li>
+</ul>
+<p>因此，<code>WeightsMapper</code> 的职责不只是简单的字符串替换。更准确地说，它负责将外部 checkpoint 表示转换为运行时参数表示，可能同时包含：</p>
+<pre><code>参数重命名  → 参数拆分或合并  → 并行切分  → 格式转换  → 量化适配  → 设备布局转换</code></pre>
+<p>权重加载阶段应建立明确的检查机制，至少包括：</p>
+<ul>
+<li>checkpoint 中的参数是否全部被消费；</li>
+<li>是否存在未匹配参数；</li>
+<li>是否存在重复匹配；</li>
+<li>参数 Shape 是否一致；</li>
+<li>参数 dtype 是否符合预期；</li>
+<li>QKV、gate/up 和 MoE expert 等融合参数是否按预期处理；</li>
+<li>不同并行 rank 加载的参数是否互补；</li>
+<li>量化权重与对应 scale 是否成对加载。</li>
+</ul>
+<p>建议将权重装配的验收标准明确为：</p>
+<pre><code>无未匹配参数无重复加载参数关键参数 Shape 全部一致参数数量和统计量符合预期单层输出与参考实现一致端到端 logits 误差在允许范围内</code></pre>
+<p>需要注意的是，权重加载错误不一定会导致程序立即崩溃。参数名称碰巧匹配、Shape 恰好兼容，仍然可能产生数值错误，最终表现为：</p>
+<ul>
+<li>logits 偏差；</li>
+<li>生成结果异常；</li>
+<li>某些输入长度下结果错误；</li>
+<li>多卡结果与单卡不一致；</li>
+<li>模型质量明显下降但程序运行正常。</li>
+</ul>
+<p>因此，不能只通过“模型成功加载”判断权重装配正确。</p>
+<p>推荐采用以下验证顺序：</p>
+<pre><code>参数匹配检查  → 关键参数 Shape 检查  → 参数统计量检查  → 单层输出对比  → hidden states 对比  → logits 对比  → 端到端生成结果对比</code></pre>
+<p>直接比较最终生成文本只能作为最后一层验证，因为采样和离散 token 可能掩盖中间层的数值误差。</p>
+<h3 id="53-打通单卡最小可运行路径">5.3 打通单卡最小可运行路径</h3>
+<p>模型结构和权重装配完成后，不应立即接入所有高级能力。首先应建立一个简单、稳定且容易观察的最小运行路径。</p>
+<p>建议按照以下顺序逐步推进：</p>
+<pre><code>模型实例化  → 单卡加载  → 单请求 Prefill  → 单请求 Decode  → 多轮 Decode  → 基本采样  → 简单动态 Batch</code></pre>
+<p>此阶段暂时不引入或尽量避免：</p>
+<ul>
+<li>Tensor Parallel；</li>
+<li>Pipeline Parallel；</li>
+<li>Expert Parallel；</li>
+<li>量化；</li>
+<li>CUDA Graph；</li>
+<li>Prefix Cache；</li>
+<li>speculative decoding；</li>
+<li>自定义特化 kernel；</li>
+<li>复杂的多模态输入路径。</li>
+</ul>
+<p>最小路径的目标不是获得高性能，而是建立一个可以与参考实现进行稳定对比的正确性基线。至少需要确认：</p>
+<ul>
+<li>模型可以正确实例化；</li>
+<li>权重可以完整加载；</li>
+<li>单步 forward 结果正确；</li>
+<li>单次 Prefill 结果正确；</li>
+<li>Prefill 后可以继续 Decode；</li>
+<li>position 和 attention mask 正确；</li>
+<li>logits 能够正确传递到 sampling；</li>
+<li>EOS 和停止条件正常；</li>
+<li>请求完成后显存和运行时状态可以释放。</li>
+</ul>
+<p>这一阶段尤其需要关注 Prefill 和 Decode 之间的状态衔接。对于同一个序列，可以比较：</p>
+<pre><code>一次性 Prefill 得到的 logits</code></pre>
+<p>与：</p>
+<pre><code>分段 Prefill / Decode 得到的对应 logits</code></pre>
+<p>如果二者存在非预期差异，通常应优先检查：</p>
+<ul>
+<li>position 计算；</li>
+<li>attention mask；</li>
+<li>KV Cache 写入；</li>
+<li>KV Cache 读取；</li>
+<li>sequence length；</li>
+<li>token 到 cache block 的映射；</li>
+<li>prefill 和 decode 的路径切换。</li>
+</ul>
+<p>只有最小单卡路径稳定后，才适合继续引入动态 Batch 和多卡执行。</p>
+<h3 id="54-适配运行时状态与-attention-执行">5.4 适配运行时状态与 Attention 执行</h3>
+<p>模型结构正确并不代表已经完成运行时接入。新模型还必须能够与调度、KV Cache、Attention Metadata 和 backend 协同工作。</p>
+<p>运行时执行链路可以表示为：</p>
+<pre><code>Scheduler  
+↓SchedulerOutput  
+↓Worker  
+↓ModelRunner  
+↓Attention Metadata  
+↓Model / Attention Backend  
+↓KV Cache 访问</code></pre>
+<p>其中：</p>
+<ul>
+<li><code>SchedulerOutput</code> 描述当前 step 需要处理哪些请求以及每个请求推进多少 token；</li>
+<li><code>ModelRunner</code> 将调度计划转换为模型输入、batch 布局和运行时状态；</li>
+<li><code>Attention Metadata</code> 描述当前 attention 需要使用的序列长度、KV block 和 token 映射；</li>
+<li>Attention Backend 根据 metadata 和硬件能力选择具体执行实现；</li>
+<li>KV Cache 或其他状态系统负责保存和访问跨 step 的推理状态。</li>
+</ul>
+<p>因此，Attention Metadata 并不是调度器直接产生的原始结果，而是由 ModelRunner 根据以下信息构造：</p>
+<pre><code>SchedulerOutput  + 当前输入 token 布局  + KV Cache / state 状态  + Attention 类型  + Backend 能力  ↓Attention Metadata</code></pre>
+<p>新模型接入时，应重点确认以下问题。</p>
+<h4 id="541-attention-路径">5.4.1 Attention 路径</h4>
+<ul>
+<li>Attention 是否属于现有 backend 支持的类型；</li>
+<li>MHA、MQA、GQA 或 MLA 的 head 数是否正确；</li>
+<li>Q、K、V 的 Shape 和布局是否符合预期；</li>
+<li>prefill 和 decode 是否使用相同的状态语义；</li>
+<li>是否需要特殊的 mask、position 或 RoPE；</li>
+<li>是否存在局部 attention、滑动窗口或混合 attention；</li>
+<li>是否需要新增 attention metadata 字段。</li>
+</ul>
+<h4 id="542-kv-cache-或其他推理状态">5.4.2 KV Cache 或其他推理状态</h4>
+<ul>
+<li>cache 的层数是否正确；</li>
+<li>KV head 数和 head dimension 是否正确；</li>
+<li>cache dtype 是否匹配；</li>
+<li>cache block 的布局是否正确；</li>
+<li>block table 和 slot mapping 是否正确传递；</li>
+<li>cache block 的分配、复用和释放是否正确；</li>
+<li>prefill 写入的状态是否能被 decode 正确读取；</li>
+<li>模型是否需要 K/V 之外的 recurrent state、压缩状态或其他持久化状态。</li>
+</ul>
+<p>对于非标准模型，不应强行将所有推理状态表示为传统 K/V tensor。如果模型使用 recurrent state、压缩 KV 或混合缓存，应首先明确其状态语义，再决定是否复用现有 cache 抽象，还是扩展新的状态管理协议。</p>
+<h4 id="543-并行路径">5.4.3 并行路径</h4>
+<p>并行能力建议采用逐级扩展的方式：</p>
+<pre><code>单卡  → Tensor Parallel  → Pipeline Parallel  → Expert Parallel  → 多节点通信</code></pre>
+<p>需要分别确认：</p>
+<ul>
+<li>Tensor Parallel 下 Q、K、V、MLP 权重如何切分；</li>
+<li>Pipeline Parallel 下层之间的 hidden state 如何传递；</li>
+<li>MoE 是否需要 Expert Parallel；</li>
+<li>token dispatch 和 combine 是否保持顺序；</li>
+<li>通信是否会改变 token 对齐；</li>
+<li>通信是否能够与计算重叠；</li>
+<li>不同并行规模下输出是否与单卡结果一致。</li>
+</ul>
+<p>首次接入时不必一次性支持所有并行方式。应根据模型规模和实际部署需求，先实现最小必要的并行能力。</p>
+<h3 id="55-注册模型并验证端到端执行">5.5 注册模型并验证端到端执行</h3>
+<p>模型结构、权重装配和最小运行时路径稳定后，需要将模型接入模型发现机制，并打通完整执行链路。</p>
+<p>模型发现与加载链路为：</p>
+<pre><code>ModelConfig  
+↓ModelRegistry  
+↓Model class  
+↓ModelLoader  
+↓WeightsMapper  
+↓Loaded model</code></pre>
+<p>运行时执行链路为：</p>
+<pre><code>Scheduler  
+↓SchedulerOutput  
+↓Worker  
+↓ModelRunner  
+↓Attention Metadata  
+↓Model / Attention Backend  
+↓ModelRunnerOutput</code></pre>
+<p>这一阶段应分别验证模型发现、模型加载和请求执行，避免将不同问题混在一起。</p>
+<h4 id="551-模型发现与加载验证">5.5.1 模型发现与加载验证</h4>
+<p>重点检查：</p>
+<ul>
+<li>模型架构名称能否被正确识别；</li>
+<li><code>ModelConfig</code> 是否解析出正确的 runner 类型；</li>
+<li><code>ModelRegistry</code> 是否能够返回正确的模型类；</li>
+<li>模型类是否能够被正常导入和实例化；</li>
+<li>checkpoint 是否能够完整加载；</li>
+<li>dtype、量化和并行配置是否生效；</li>
+<li>单卡初始化是否成功；</li>
+<li>是否存在未匹配或重复加载的参数。</li>
+</ul>
+<h4 id="552-单卡端到端验证">5.5.2 单卡端到端验证</h4>
+<p>重点覆盖：</p>
+<ul>
+<li>单请求 Prefill；</li>
+<li>单请求 Decode；</li>
+<li>多轮 Decode；</li>
+<li>动态 Batch；</li>
+<li>流式输出；</li>
+<li>EOS 和停止条件；</li>
+<li>请求取消；</li>
+<li>请求完成后的 KV Cache 回收；</li>
+<li>显存释放；</li>
+<li>异常请求后的状态恢复。</li>
+</ul>
+<h4 id="553-服务生命周期验证">5.5.3 服务生命周期验证</h4>
+<p>除了正常生成路径，还应验证：</p>
+<ul>
+<li>请求在 Prefill 阶段取消；</li>
+<li>请求在 Decode 阶段取消；</li>
+<li>多个请求同时完成；</li>
+<li>长请求被新请求打断或插入；</li>
+<li>OOM 后服务是否能够正确报错；</li>
+<li>异常请求是否会残留 cache block；</li>
+<li>多次加载和卸载模型后是否出现显存泄漏。</li>
+</ul>
+<p>“模型能够被 Registry 找到”只说明模型发现链路正常，并不代表模型已经能够在动态请求环境中稳定执行。只有上述运行时行为全部贯通，才可以认为模型完成了基础接入。</p>
+<h3 id="56-扩展并行量化和其他高级能力">5.6 扩展并行、量化和其他高级能力</h3>
+<p>基础单卡路径稳定后，再逐步接入高级能力。建议按照实际需求分阶段推进，而不是将所有能力作为首次接入的前置条件。</p>
+<h4 id="561-并行能力">5.6.1 并行能力</h4>
+<p>可以按照以下顺序扩展：</p>
+<pre><code>单卡  → Tensor Parallel  → Pipeline Parallel  → Expert Parallel  → 多节点部署</code></pre>
+<p>每增加一种并行方式，都需要重新验证：</p>
+<ul>
+<li>参数切分是否正确；</li>
+<li>rank 间输出是否一致；</li>
+<li>通信数据是否正确；</li>
+<li>token 顺序是否保持；</li>
+<li>cache 和状态是否与并行布局匹配；</li>
+<li>计算和通信是否存在不必要的同步。</li>
+</ul>
+<h4 id="562-量化能力">5.6.2 量化能力</h4>
+<p>量化接入不仅是改变 dtype，还可能涉及：</p>
+<ul>
+<li>checkpoint 格式；</li>
+<li>packed weight；</li>
+<li>scale 和 zero-point；</li>
+<li>权重布局；</li>
+<li>激活量化；</li>
+<li>kernel 支持；</li>
+<li>并行切分顺序；</li>
+<li>量化误差。</li>
+</ul>
+<p>因此，量化应在浮点或高精度基线稳定后进行，并比较：</p>
+<pre><code>高精度模型  → 量化模型数值误差  → 端到端生成质量  → 性能与显存收益</code></pre>
+<h4 id="563-prefix-cachespeculative-decoding-和-mtp">5.6.3 Prefix Cache、Speculative Decoding 和 MTP</h4>
+<p>这些能力会改变运行时状态和执行路径，不应仅被视为模型开关。</p>
+<p>接入时需要确认：</p>
+<ul>
+<li>Prefix Cache 是否适用于模型的状态语义；</li>
+<li>speculative decoding 是否需要额外的 draft model 或多预测头；</li>
+<li>MTP 的 hidden state 和 logits 如何组织；</li>
+<li>接受或拒绝 token 后，KV Cache 如何回滚或更新；</li>
+<li>多预测路径是否与 sampling 和停止条件兼容。</li>
+</ul>
+<p>首次接入时，如果这些能力不是模型上线的必要条件，可以先明确标记为暂不支持，而不是在基础实现中加入未经验证的分支。</p>
+<h3 id="57-性能分析与选择性特化">5.7 性能分析与选择性特化</h3>
+<p>正确性和稳定性通过后，才进入性能优化阶段。性能优化必须建立在可复现的测试配置和稳定的正确性基线上。</p>
+<p>建议先固定以下条件：</p>
+<ul>
+<li>模型权重和版本；</li>
+<li>GPU 型号；</li>
+<li>dtype 和量化配置；</li>
+<li>输入长度；</li>
+<li>输出长度；</li>
+<li>batch size；</li>
+<li>并行规模；</li>
+<li>sampling 参数；</li>
+<li>cache 配置；</li>
+<li>软件和驱动版本。</li>
+</ul>
+<p>随后使用端到端 profiling 定位关键瓶颈，而不是一开始就重写某个算子。</p>
+<p>性能指标应按照场景区分。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">主要指标</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">单请求 Prefill</td>
+<td style="text-align: left;">TTFT、Prefill 延迟、Prefill 吞吐</td>
+</tr>
+<tr>
+<td style="text-align: left;">单请求 Decode</td>
+<td style="text-align: left;">ITL、每秒生成 token 数</td>
+</tr>
+<tr>
+<td style="text-align: left;">动态 Batch</td>
+<td style="text-align: left;">总吞吐、P95/P99 延迟、batch 利用率</td>
+</tr>
+<tr>
+<td style="text-align: left;">长上下文</td>
+<td style="text-align: left;">KV Cache 占用、显存带宽、OOM 情况</td>
+</tr>
+<tr>
+<td style="text-align: left;">Prefix Cache</td>
+<td style="text-align: left;">命中率、命中后的 TTFT、cache 管理开销</td>
+</tr>
+<tr>
+<td style="text-align: left;">多卡推理</td>
+<td style="text-align: left;">通信占比、扩展效率、计算通信重叠</td>
+</tr>
+<tr>
+<td style="text-align: left;">MoE 模型</td>
+<td style="text-align: left;">路由开销、dispatch/combine 开销、expert 利用率</td>
+</tr>
+<tr>
+<td style="text-align: left;">量化模型</td>
+<td style="text-align: left;">显存占用、量化误差、反量化开销</td>
+</tr>
+</tbody>
+</table>
+<p>推荐使用以下优化流程：</p>
+<pre><code>建立端到端基线  
+↓采集算子、访存、通信和调度指标  
+↓定位关键瓶颈  
+↓判断瓶颈属于计算、访存、通信、调度还是采样  
+↓选择性引入优化  
+↓重新验证正确性和性能收益</code></pre>
+<p>常见瓶颈包括：</p>
+<ul>
+<li>Attention 计算；</li>
+<li>KV Cache 访存；</li>
+<li>MoE 路由、dispatch 和 combine；</li>
+<li>Tensor Parallel 或 Expert Parallel 通信；</li>
+<li>量化和反量化；</li>
+<li>kernel launch；</li>
+<li>动态 Shape 导致的图捕获失败；</li>
+<li>Python 或 CPU 侧调度；</li>
+<li>sampling；</li>
+<li>内存分配和 cache 管理。</li>
+</ul>
+<p>因此，Attention 并不总是第一瓶颈。特别是在小 batch Decode 场景中，系统可能受限于 kernel launch、访存、采样或通信，而不是纯粹的矩阵计算。</p>
+<p>只有当 profiling 证明现有实现确实是关键路径时，才应考虑：</p>
+<ul>
+<li>新增特化 kernel；</li>
+<li>扩展 Attention Backend；</li>
+<li>增加 shape bucket；</li>
+<li>引入 CUDA Graph；</li>
+<li>使用 <code>torch.compile</code>；</li>
+<li>融合量化和计算；</li>
+<li>优化通信与计算重叠；</li>
+<li>修改 ModelRunner 的输入布局。</li>
+</ul>
+<p>每次优化都必须重新进行数值和端到端验证，避免为了局部吞吐牺牲模型正确性或请求稳定性。</p>
+<h3 id="58-正确性性能与分布式验收">5.8 正确性、性能与分布式验收</h3>
+<p>模型接入的最终验收至少包括三类测试：</p>
+<ol type="1">
+<li>正确性测试；</li>
+<li>性能测试；</li>
+<li>分布式和故障恢复测试。</li>
+</ol>
+<h4 id="581-正确性测试">5.8.1 正确性测试</h4>
+<p>正确性测试应覆盖模型结构、权重加载、运行时状态和服务行为。</p>
+<p>基础数值测试包括：</p>
+<ul>
+<li>与参考框架比较 hidden states；</li>
+<li>与参考框架比较 logits；</li>
+<li>比较不同输入长度下的结果；</li>
+<li>比较不同 batch size 下的结果；</li>
+<li>检查 Prefill 与 Decode 的一致性；</li>
+<li>检查不同 dtype 下的误差；</li>
+<li>检查量化模型的误差范围；</li>
+<li>检查单卡与多卡结果的一致性。</li>
+</ul>
+<p>生成行为测试包括：</p>
+<ul>
+<li>greedy decoding；</li>
+<li>temperature、top-k、top-p 等采样参数；</li>
+<li>EOS 行为；</li>
+<li>stop token 和 stop string；</li>
+<li>最大输出长度；</li>
+<li>空输入、短输入和超长输入；</li>
+<li>多轮对话和 chat template；</li>
+<li>流式输出；</li>
+<li>请求中途取消。</li>
+</ul>
+<p>运行时状态测试包括：</p>
+<ul>
+<li>KV Cache 分配；</li>
+<li>KV Cache 复用；</li>
+<li>Prefix Cache 命中和未命中；</li>
+<li>请求完成后的 cache 回收；</li>
+<li>长时间运行后的显存稳定性；</li>
+<li>动态 Batch 中请求加入和退出；</li>
+<li>OOM 或异常后的状态恢复。</li>
+</ul>
+<p>如果模型支持多模态，还应额外测试：</p>
+<ul>
+<li>图片、视频或音频预处理；</li>
+<li>多模态 token 与文本 token 的对齐；</li>
+<li>不同输入尺寸；</li>
+<li>多模态输入缺失或格式错误；</li>
+<li>多模态 encoder 状态的缓存和释放。</li>
+</ul>
+<h4 id="582-性能测试">5.8.2 性能测试</h4>
+<p>性能测试至少应覆盖以下场景：</p>
+<ul>
+<li>单请求短上下文；</li>
+<li>单请求长上下文；</li>
+<li>短 Prefill、长 Decode；</li>
+<li>长 Prefill、短 Decode；</li>
+<li>多请求动态 Batch；</li>
+<li>高并发 Decode；</li>
+<li>Prefix Cache；</li>
+<li>不同 batch size；</li>
+<li>不同输入和输出长度；</li>
+<li>不同 dtype 和量化配置；</li>
+<li>不同并行规模。</li>
+</ul>
+<p>性能测试不能只观察平均值，还应关注：</p>
+<ul>
+<li>首 Token 延迟；</li>
+<li>单 Token 间隔；</li>
+<li>总吞吐；</li>
+<li>P50、P95、P99 延迟；</li>
+<li>GPU 利用率；</li>
+<li>显存占用；</li>
+<li>显存带宽利用率；</li>
+<li>kernel launch 数量；</li>
+<li>通信占比；</li>
+<li>cache 分配和回收开销。</li>
+</ul>
+<h4 id="583-分布式与故障恢复测试">5.8.3 分布式与故障恢复测试</h4>
+<p>分布式测试应覆盖：</p>
+<ul>
+<li>不同 Tensor Parallel size；</li>
+<li>不同 Pipeline Parallel stage 数；</li>
+<li>Expert Parallel；</li>
+<li>多节点通信；</li>
+<li>不同 rank 的参数和输出一致性；</li>
+<li>通信与计算重叠；</li>
+<li>请求取消；</li>
+<li>OOM；</li>
+<li>通信超时；</li>
+<li>部分 rank 异常；</li>
+<li>服务重启；</li>
+<li>模型重复加载和卸载。</li>
+</ul>
+<p>建议重点比较：</p>
+<pre><code>单卡结果    与多卡结果参考框架结果    与vLLM 结果未优化实现    与优化后实现</code></pre>
+<p>每增加一种并行方式、量化方式或特化 kernel，都应重新执行相应的正确性测试和性能回归测试。</p>
+<h3 id="59-推荐的接入顺序与发布门槛">5.9 推荐的接入顺序与发布门槛</h3>
+<p>综合上述步骤，一个新模型的推荐接入顺序如下：</p>
+<pre><code>1. 分析模型差异  
+↓2. 确定复用、局部改造或全新实现  
+↓3. 实现模型结构  
+↓4. 实现权重映射与装配  
+↓5. 通过参数和数值检查  
+↓6. 打通单卡、单请求 Prefill  
+↓7. 打通单卡 Decode 和多轮执行  
+↓8. 接入 KV Cache 和 Attention Metadata  
+↓9. 注册 ModelConfig / ModelRegistry  
+↓10. 验证动态 Batch 和请求生命周期  
+↓11. 扩展 Tensor Parallel 等并行能力  
+↓12. 接入量化和其他高级能力  
+↓13. Profiling 并进行选择性特化  
+↓14. 完成正确性、性能和分布式验收</code></pre>
+<p>可以将发布门槛概括为：</p>
+<pre><code>模型能够被正确识别  且权重能够完整装配  且单卡 Prefill / Decode 数值正确  且KV Cache 和请求生命周期稳定  且目标并行配置下输出正确  且性能达到预期  且故障和资源回收行为可控</code></pre>
+<p>最终，一个新模型是否真正“接入完成”，不能只看模型类是否已经注册，也不能只看单次请求是否能够生成文本。完整接入应当同时满足：</p>
+<pre><code>配置可识别实现可复用或可维护权重可正确装配运行时状态可管理Prefill / Decode 可稳定执行并行路径可验证性能瓶颈可解释异常场景可恢复</code></pre>
+<p>从架构角度看，这一过程正好对应前文所描述的抽象链路：</p>
+<pre><code>配置语义  → 模型发现  → 模型能力  → 权重装配  → 调度计划  → 执行编排  → Attention Metadata  → KV Cache / Backend  → 硬件执行</code></pre>
+<p>因此，新模型接入的核心并不是把所有差异都塞进模型类，而是识别差异所在的层级，并将其放置到正确的抽象边界中：</p>
+<pre class="wider"><code>配置差异       → ModelConfig识别差异       → ModelRegistry结构差异       → Model class / 公共模块权重差异       → ModelLoader / WeightsMapper执行差异       → Worker / ModelRunner状态差异       → KV Cache / State ManagementAttention 差异 → Attention Metadata / Backend输入差异       → Tokenizer / Multimodal Registry性能差异       → Compiler / Graph / Kernel Backend</code></pre>
+<p>这也是新模型能够在不破坏既有运行时和性能优化的前提下接入 vLLM 的关键。</p>
+<h2 id="6-实际案例分析deepseek架构的工程适配">6. 实际案例分析：DeepSeek架构的工程适配</h2>
+<p>DeepSeek 系列模型的接入，并不是简单地增加一个模型类、补充若干权重映射，或者为某个算子编写特化 Kernel。它更像是一次对推理引擎既有协议的压力测试：模型在注意力机制、专家路由、推测式生成和缓存管理等方面引入了新的状态组织方式，迫使 vLLM 重新审视原有抽象是否足够表达这些变化。</p>
+<p>从工程角度看，DeepSeek 的接入可以被拆解为三类问题：</p>
+<ol type="1">
+<li><strong>如何表示新的计算状态</strong>；</li>
+<li><strong>如何调度动态变化的计算路径</strong>；</li>
+<li><strong>如何保证这些动态状态在增量执行、并行执行和回滚执行中的一致性</strong>。</li>
+</ol>
+<p>因此，DeepSeek 的适配并不是单点修改，而是涉及以下多个层次：</p>
+<pre><code>模型配置与注册  
+↓权重加载与结构映射  
+↓注意力与 KV Cache 表达  
+↓MoE 路由与分布式执行  
+↓MTP / Speculative Decoding 状态管理  
+↓调度、验证、回滚与性能优化</code></pre>
+<p>这也说明，复杂模型的接入过程，本质上是将模型自身的特殊机制翻译成推理框架能够理解的协议。</p>
+<h3 id="61-mla从注意力优化到-kv-cache-协议扩展">6.1 MLA：从注意力优化到 KV Cache 协议扩展</h3>
+<p>Multi-head Latent Attention，简称 MLA，最直接的目标是降低 KV Cache 的存储与访存开销。传统多头注意力通常需要为每个 Token 保存规模较大的 Key 和 Value 状态，而 MLA 则通过低秩表示压缩历史上下文，使缓存中的信息维度显著降低。</p>
+<p>在概念上，传统 KV Cache 可以抽象为：</p>
+<pre><code>K_cache: [batch, sequence_length, num_heads, head_dim]V_cache: [batch, sequence_length, num_heads, head_dim]</code></pre>
+<p>而 MLA 更接近于保存某种低秩潜变量：</p>
+<pre><code>latent_cache: [batch, sequence_length, latent_dim]</code></pre>
+<p>在实际实现中，缓存内容、解码方式以及位置编码相关状态可能比上述形式更加复杂。因此，MLA 的关键变化并不只是“把缓存张量变小”，而是改变了缓存的语义：</p>
+<blockquote>
+<p>KV Cache 不再必然表示已经展开的 Key/Value，而可以表示生成 Key/Value 所需的压缩状态。</p>
+</blockquote>
+<p>这会影响 vLLM 的多个组件。</p>
+<h4 id="611-cache-allocation">6.1.1 Cache allocation</h4>
+<p>缓存分配逻辑不能只根据固定的 <code>num_heads × head_dim</code> 计算容量，而需要能够根据不同注意力后端提供的缓存布局动态确定：</p>
+<ul>
+<li>每个 Token 需要多少缓存空间；</li>
+<li>缓存是按完整 KV 保存，还是按 latent 表示保存；</li>
+<li>不同层是否使用相同的缓存格式；</li>
+<li>缓存是否包含额外的位置编码或旋转位置状态。</li>
+</ul>
+<p>因此，缓存分配接口需要从“分配一块固定形状的 KV 空间”，逐渐演进为“根据注意力协议分配一类可被后端解释的缓存空间”。</p>
+<h4 id="612-cache-write-与-cache-copy">6.1.2 Cache write 与 cache copy</h4>
+<p>在普通注意力中，缓存写入通常可以理解为：</p>
+<pre><code>新生成的 K、V    ↓写入对应的 block</code></pre>
+<p>而在 MLA 中，写入的数据可能是压缩后的 latent，或者是经过投影、分解和位置编码处理后的中间状态。于是，缓存写入与复制操作必须明确：</p>
+<ul>
+<li>写入的是展开后的表示还是压缩表示；</li>
+<li>block table 如何解释缓存位置；</li>
+<li>prefix cache 复用时复制的到底是什么；</li>
+<li>交换、重排、迁移缓存时是否需要额外转换。</li>
+</ul>
+<p>这意味着，<code>copy_blocks</code>、cache swap、prefix caching 等底层机制不能假设所有缓存都具有传统 K/V 的形状和语义。</p>
+<h4 id="613-attention-metadata">6.1.3 Attention Metadata</h4>
+<p>MLA 对 <code>Attention Metadata</code> 的要求也更高。Metadata 不仅要描述序列长度、slot 映射和 block table，还可能需要包含：</p>
+<ul>
+<li>latent cache 的布局信息；</li>
+<li>不同阶段使用的投影参数；</li>
+<li>prefill 与 decode 阶段不同的计算路径；</li>
+<li>是否启用特定的压缩或恢复逻辑；</li>
+<li>后端需要的额外 stride、偏移与索引信息。</li>
+</ul>
+<p>因此，MLA 可以被视为对注意力后端接口的一次扩展：</p>
+<pre class="wide"><code>传统注意力：SchedulerOutput    → seq_lens / block_table    → 标准 K/V AttentionMLA：SchedulerOutput    → cache layout / latent metadata / position metadata    → MLA-specific Attention Backend</code></pre>
+<p>需要注意的是，MLA 并不意味着整个 vLLM 都必须理解 MLA 的数学细节。更合理的设计是：</p>
+<ul>
+<li>上层负责表达调度结果和缓存状态；</li>
+<li>模型层负责组织 MLA 所需的输入；</li>
+<li>Attention Backend 负责具体的压缩状态恢复与高效计算；</li>
+<li>Cache Manager 负责提供与该协议兼容的存储和搬运能力。</li>
+</ul>
+<p>这体现了“动态性上浮，静态性下沉”的原则：MLA 的特殊性应当被限制在明确的模型和后端边界内，而不是扩散到所有通用调度代码中。</p>
+<h3 id="62-moe从静态执行图到动态专家路由">6.2 MoE：从静态执行图到动态专家路由</h3>
+<p>Mixture-of-Experts，简称 MoE，将单一的前馈网络替换为多个专家网络，并由 Router 为每个 Token 选择少量专家执行。它的核心优势是：</p>
+<blockquote>
+<p>在保持较大参数规模的同时，使每个 Token 实际只激活部分参数。</p>
+</blockquote>
+<p>然而，对推理引擎而言，MoE 带来的并不仅是多个 <code>Linear</code> 层，而是一套动态的 Token-to-Expert 执行机制。</p>
+<p>传统 Dense 模型中的执行路径相对稳定：</p>
+<pre><code>Token  → Attention  → MLP  → 下一层</code></pre>
+<p>MoE 模型则更接近：</p>
+<pre><code>Token  → Router  → Expert Selection  → Token Dispatch  → Expert Compute  → Token Combine</code></pre>
+<p>其中，Expert Selection 和 Token Dispatch 的结果会随着每一批 Token 的内容动态变化。</p>
+<h4 id="621-token-to-expert-映射">6.2.1 Token-to-Expert 映射</h4>
+<p>MoE 执行通常需要构造某种 Token-to-Expert 映射表，用于描述：</p>
+<ul>
+<li>每个 Token 被分配到哪些专家；</li>
+<li>每个专家接收多少 Token；</li>
+<li>Token 在重排后位于哪个位置；</li>
+<li>专家计算完成后如何恢复原始 Token 顺序；</li>
+<li>跨设备专家如何进行通信。</li>
+</ul>
+<p>可以抽象为：</p>
+<pre><code>原始 Token 顺序  
+↓Router 得分  
+↓Top-k Expert Selection  
+↓Token-to-Expert Mapping  
+↓按专家重排  
+↓Expert Computation  
+↓按原始顺序还原</code></pre>
+<p>这与普通 MLP 的主要差异在于：矩阵乘法的输入排列不再固定，计算负载也不再均匀。</p>
+<h4 id="622-与-scheduler-的关系">6.2.2 与 Scheduler 的关系</h4>
+<p>需要谨慎区分两个层次：</p>
+<ul>
+<li><code>Scheduler</code> 通常负责请求、序列和 Token 级别的批处理调度；</li>
+<li>Router 负责根据当前 Token 的隐藏状态选择专家。</li>
+</ul>
+<p>因此，Scheduler 通常无法在真正计算 Router 之前准确知道每个 Token 的专家归属。更准确的说法是：</p>
+<blockquote>
+<p>MoE 要求调度与执行编排层能够容纳动态的专家路由结果，而不是简单地要求 Scheduler 在执行前完全预测专家负载。</p>
+</blockquote>
+<p>在某些优化路径中，系统可以根据历史统计、容量限制或设备拓扑对可能的专家负载进行预估，但这属于调度优化，而不是 Router 语义本身。</p>
+<p>这会推动 <code>SchedulerOutput</code> 和 <code>ModelRunner</code> 之间的契约更加丰富。例如，执行计划可能需要支持：</p>
+<ul>
+<li>当前批次是否包含 MoE 层；</li>
+<li>是否启用专家并行；</li>
+<li>专家容量限制；</li>
+<li>通信与计算的重叠策略；</li>
+<li>当前执行需要的 dispatch buffer；</li>
+<li>不同设备上的专家布局。</li>
+</ul>
+<p>因此，MoE 的接入点不仅在模型定义中，也在分布式执行和运行时编排中。</p>
+<h4 id="623-专家并行与通信">6.2.3 专家并行与通信</h4>
+<p>当专家分布在不同 GPU 上时，Token 需要通过通信操作发送到对应设备。典型过程包括：</p>
+<pre><code>本地 Token    → 本地 Router    → All-to-All / Dispatch    → 远程 Expert    → All-to-All / Combine    → 本地 Token 顺序恢复</code></pre>
+<p>这里的性能瓶颈可能不再是单个 GEMM，而是：</p>
+<ul>
+<li>Token dispatch 的重排；</li>
+<li>All-to-All 通信；</li>
+<li>专家负载不均衡；</li>
+<li>小批量专家矩阵乘法；</li>
+<li>通信与计算之间的同步。</li>
+</ul>
+<p>因此，MoE 的验证不能只检查输出数值，还必须检查：</p>
+<ul>
+<li>专家负载是否严重倾斜；</li>
+<li>通信量是否符合预期；</li>
+<li>极端输入下是否出现专家容量溢出；</li>
+<li>多卡和单卡路径是否具有一致语义；</li>
+<li>Token 重排和还原是否保持顺序正确。</li>
+</ul>
+<h3 id="63-mtp从单步生成到可验证的多步执行">6.3 MTP：从单步生成到可验证的多步执行</h3>
+<p>Multi-Token Prediction，简称 MTP，改变了传统自回归模型“一次只生成一个 Token、确认后再继续”的执行方式。它允许模型在一次前向过程中提出多个候选 Token，随后通过验证逻辑决定哪些候选可以被接受。</p>
+<p>因此，MTP 的基本执行过程可以表示为：</p>
+<pre><code>已确认上下文  
+↓生成多个候选 Token  
+↓验证候选序列  
+↓接受部分候选  
+↓拒绝或回滚其余候选  
+↓提交新的推理状态</code></pre>
+<p>这与普通 decode 最大的区别在于：一次计算可能产生多个“暂时状态”，但这些状态并不一定全部成为最终状态。</p>
+<h4 id="631-推理状态不再只有提交语义">6.3.1 推理状态不再只有“提交”语义</h4>
+<p>传统增量推理通常假设：</p>
+<pre><code>执行一步    → 写入 KV Cache    → 更新 sequence length    → 进入下一步</code></pre>
+<p>MTP 则引入了两种状态：</p>
+<ul>
+<li><strong>暂存状态</strong>：候选 Token 对应的临时计算结果；</li>
+<li><strong>提交状态</strong>：经过验证后正式纳入序列的结果。</li>
+</ul>
+<p>因此，KV Cache、序列长度、位置编码状态以及相关元数据都必须能够区分：</p>
+<pre><code>tentative state    与committed state</code></pre>
+<p>如果候选 Token 已经直接覆盖了正式缓存，那么验证失败后就必须具备可靠的撤销机制。否则，后续 Token 可能会读取到本不应存在的上下文，导致结果错误。</p>
+<h4 id="632-回滚语义">6.3.2 回滚语义</h4>
+<p>MTP 的回滚并不是简单地把 Python 列表长度减一。它可能涉及：</p>
+<ul>
+<li>回退序列长度；</li>
+<li>释放或重新标记缓存 block；</li>
+<li>恢复 block table；</li>
+<li>清理临时 attention metadata；</li>
+<li>撤销候选 Token 的 logits 状态；</li>
+<li>恢复位置编码和采样相关状态；</li>
+<li>修正请求级别的生成进度。</li>
+</ul>
+<p>因此，回滚必须是一个具有一致性的事务操作：</p>
+<pre><code>开始候选执行  
+↓记录旧状态  
+↓写入暂存结果  
+↓验证候选  
+↓提交，或恢复旧状态</code></pre>
+<p>从这个意义上说，MTP 将一种过去较少出现在普通推理路径中的语义引入了运行时：</p>
+<blockquote>
+<p>推理状态不仅要支持前进，还要支持可验证、可撤销和部分提交。</p>
+</blockquote>
+<p>这为未来的 Speculative Decoding、树状候选生成以及更复杂的搜索式解码提供了基础。</p>
+<p>不过，“MTP 是 vLLM 历史上第一次引入可撤销状态管理”这一表述应当适当收敛。更严谨的说法是：MTP 将<strong>显式的候选状态、部分接受和回滚语义</strong>带入了更核心的推理状态管理路径，使这一能力从特殊优化机制上升为需要系统级支持的运行时能力。</p>
+<h4 id="633-scheduler-与-kv-cache-的协同">6.3.3 Scheduler 与 KV Cache 的协同</h4>
+<p>MTP 要求 Scheduler 不再只处理“下一步要生成哪个 Token”，还需要处理：</p>
+<ul>
+<li>当前请求允许生成多少候选 Token；</li>
+<li>哪些候选已经生成；</li>
+<li>哪些候选通过验证；</li>
+<li>哪些状态需要提交；</li>
+<li>哪些状态需要回滚；</li>
+<li>回滚后下一轮调度从哪个位置继续。</li>
+</ul>
+<p>因此，调度输出可能需要携带更丰富的候选和验证信息。ModelRunner 则负责将这些信息编排为实际的模型执行步骤，Attention Backend 最终接收与当前提交状态一致的 metadata。</p>
+<p>可以将三者关系概括为：</p>
+<pre><code>Scheduler：决定候选执行与提交/回滚计划ModelRunner：将计划编排为若干次模型执行Attention / KV Backend：按照当前有效状态读取、写入或恢复缓存</code></pre>
+<p>MTP 的关键验证点也不只是“最终文本是否合理”，而是要检查：</p>
+<ul>
+<li>部分接受后的位置是否连续；</li>
+<li>回滚后的 KV Cache 是否与基线一致；</li>
+<li>多轮候选执行后是否发生状态污染；</li>
+<li>接受 0 个、1 个或全部候选时是否都正确；</li>
+<li>prefill、decode 与 MTP 混合批次是否正确；</li>
+<li>失败路径是否会造成缓存泄漏或 block 错配。</li>
+</ul>
+<h3 id="64-deepseek-架构接入的边界拆解">6.4 DeepSeek 架构接入的边界拆解</h3>
+<p>下面的决策矩阵可以看出DeepSeek 的每项特性都不能简单归入“模型层”。它们分别触及了缓存、调度、分布式执行、算子后端和状态管理等不同边界。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">特性</th>
+<th style="text-align: left;">主要变化</th>
+<th style="text-align: left;">接入动作</th>
+<th style="text-align: left;">对应抽象边界</th>
+<th style="text-align: left;">关键验证点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">MLA</td>
+<td style="text-align: left;">KV 表示从完整 K/V 转向低秩或压缩状态</td>
+<td style="text-align: left;">实现低秩状态生成、恢复与缓存读写</td>
+<td style="text-align: left;">Attention Metadata、KV Cache、Attention Backend</td>
+<td style="text-align: left;">与标准注意力对比数值误差；检查缓存读写和 prefix 复用</td>
+</tr>
+<tr>
+<td style="text-align: left;">MoE</td>
+<td style="text-align: left;">每个 Token 动态选择部分专家</td>
+<td style="text-align: left;">实现 Router、Token dispatch、专家计算与结果 combine</td>
+<td style="text-align: left;">ModelRunner、Distributed Executor、Expert Parallel</td>
+<td style="text-align: left;">专家负载均衡、通信吞吐、Token 顺序恢复、容量溢出</td>
+</tr>
+<tr>
+<td style="text-align: left;">MTP</td>
+<td style="text-align: left;">一次执行产生多个候选并进行验证</td>
+<td style="text-align: left;">实现候选状态、部分提交与回滚</td>
+<td style="text-align: left;">Scheduler、ModelRunner、KV Cache、Sampling</td>
+<td style="text-align: left;">接受、拒绝和部分接受路径的一致性</td>
+</tr>
+<tr>
+<td style="text-align: left;">低秩投影</td>
+<td style="text-align: left;">权重和激活的形状、计算路径变化</td>
+<td style="text-align: left;">增加相应层实现与权重映射</td>
+<td style="text-align: left;">Model Definition、Weights Mapper</td>
+<td style="text-align: left;">权重切分、合并、量化格式与精度</td>
+</tr>
+<tr>
+<td style="text-align: left;">分布式专家</td>
+<td style="text-align: left;">专家跨设备分布</td>
+<td style="text-align: left;">增加通信与设备映射逻辑</td>
+<td style="text-align: left;">Parallel State、Distributed Backend</td>
+<td style="text-align: left;">单卡/多卡一致性、通信死锁、负载倾斜</td>
+</tr>
+<tr>
+<td style="text-align: left;">动态缓存</td>
+<td style="text-align: left;">缓存不再是简单线性追加</td>
+<td style="text-align: left;">支持 block 分配、复用、交换与回滚</td>
+<td style="text-align: left;">KV Cache Manager</td>
+<td style="text-align: left;">缓存生命周期、碎片率、回滚后状态</td>
+</tr>
+<tr>
+<td style="text-align: left;">推测式执行</td>
+<td style="text-align: left;">计算结果存在暂存与提交两个阶段</td>
+<td style="text-align: left;">建立可撤销的执行状态</td>
+<td style="text-align: left;">Scheduler、ModelRunner、KV Cache</td>
+<td style="text-align: left;">长序列、多请求并发和异常路径</td>
+</tr>
+<tr>
+<td style="text-align: left;">特化 Kernel</td>
+<td style="text-align: left;">通用算子难以覆盖全部性能需求</td>
+<td style="text-align: left;">增加硬件与后端特化实现</td>
+<td style="text-align: left;">Attention Backend、Custom Op</td>
+<td style="text-align: left;">数值稳定性、边界尺寸、不同硬件兼容性</td>
+</tr>
+</tbody>
+</table>
+<h3 id="65-三层架构通用层特化层与验证层">6.5 三层架构：通用层、特化层与验证层</h3>
+<p>为了控制复杂度，DeepSeek 的接入可以按照三层结构组织。</p>
+<h4 id="651-通用层">6.5.1 通用层</h4>
+<p>通用层负责复用 vLLM 已有的基础能力，包括：</p>
+<ul>
+<li>请求管理；</li>
+<li>Tokenizer；</li>
+<li>基础调度；</li>
+<li>block-based KV Cache；</li>
+<li>权重加载框架；</li>
+<li>张量并行和流水线并行；</li>
+<li>采样接口；</li>
+<li>通用的 ModelRunner 生命周期。</li>
+</ul>
+<p>通用层的目标不是理解所有模型细节，而是提供稳定的运行时骨架。</p>
+<h4 id="652-特化层">6.5.2 特化层</h4>
+<p>特化层负责承载 DeepSeek 的模型特性，包括：</p>
+<ul>
+<li>MLA 的注意力与缓存布局；</li>
+<li>MoE Router 和专家执行；</li>
+<li>专家并行与 Token dispatch；</li>
+<li>MTP 候选生成与验证；</li>
+<li>特殊的位置编码与投影逻辑；</li>
+<li>面向特定硬件的优化 Kernel。</li>
+</ul>
+<p>特化层应当尽量通过清晰的接口接入通用层，而不应直接修改大量无关的调度和缓存代码。</p>
+<h4 id="653-验证层">6.5.3 验证层</h4>
+<p>验证层负责确保特化逻辑不会破坏通用运行时。它至少应覆盖以下维度：</p>
+<h5 id="①-数值正确性">① 数值正确性</h5>
+<ul>
+<li>MLA 与参考实现的输出误差；</li>
+<li>MoE 路由结果与专家计算结果；</li>
+<li>MTP 接受路径与完整自回归路径；</li>
+<li>不同精度下的误差边界；</li>
+<li>量化模型与非量化模型的一致性。</li>
+</ul>
+<h5 id="②-状态一致性">② 状态一致性</h5>
+<ul>
+<li>KV Cache 写入和读取；</li>
+<li>prefix cache 命中；</li>
+<li>block swap；</li>
+<li>MTP 回滚；</li>
+<li>部分提交；</li>
+<li>多轮 decode 后的序列状态。</li>
+</ul>
+<h5 id="③-并发与分布式正确性">③ 并发与分布式正确性</h5>
+<ul>
+<li>多请求连续批处理；</li>
+<li>不同长度请求混合；</li>
+<li>专家跨设备通信；</li>
+<li>通信与计算重叠；</li>
+<li>高并发下的 block 回收。</li>
+</ul>
+<h5 id="④-性能正确性">④ 性能正确性</h5>
+<p>性能并不是单纯追求吞吐量，还包括：</p>
+<ul>
+<li>首 Token 延迟；</li>
+<li>单 Token 延迟；</li>
+<li>KV Cache 占用；</li>
+<li>专家负载均衡；</li>
+<li>通信比例；</li>
+<li>回滚开销；</li>
+<li>长上下文下的显存增长；</li>
+<li>不同 batch size 下的退化情况。</li>
+</ul>
+<p>对于 DeepSeek 这类复杂模型，验证层的重要性甚至不低于特化层。因为 MLA、MoE 和 MTP 的问题往往并不在正常路径上暴露，而是在以下边界条件中出现：</p>
+<ul>
+<li>候选全部拒绝；</li>
+<li>候选只接受一部分；</li>
+<li>专家负载极度倾斜；</li>
+<li>缓存 block 发生交换；</li>
+<li>长序列和短序列混合；</li>
+<li>多卡通信延迟抖动；</li>
+<li>特定输入触发数值不稳定。</li>
+</ul>
+<h3 id="66-小结deepseek-接入的本质">6.6 小结：DeepSeek 接入的本质</h3>
+<p>DeepSeek 对 vLLM 的影响，可以概括为三次协议扩展：</p>
+<ol type="1">
+<li><strong>MLA 扩展了缓存协议</strong> KV Cache 不再只是完整 Key/Value 的存储区域，也可以是压缩潜变量及其恢复所需的运行时状态。</li>
+<li><strong>MoE 扩展了执行协议</strong> 模型执行不再是固定的数据流，而是包含动态路由、Token 重排、专家分发和跨设备通信的运行时过程。</li>
+<li><strong>MTP 扩展了状态协议</strong> 推理状态不再只有“向前追加”，还必须支持候选、验证、部分提交与回滚。</li>
+</ol>
+<p>因此，DeepSeek 的接入可以被视为 vLLM 从“支持更多模型”走向“支持更多推理范式”的一个代表性案例。它所揭示的并不是某个单独模型的特殊性，而是现代推理引擎必须面对的共同趋势：</p>
+<blockquote>
+<p>模型结构越来越动态，缓存状态越来越复杂，执行路径越来越依赖运行时决策；而高性能推理框架必须通过稳定的抽象边界，把这些动态变化限制在可控的协议之内。</p>
+</blockquote>
+<p>这也是 vLLM 架构演进的核心方向：让上层能够表达复杂模型，让中层能够编排动态执行，让底层仍然保持高效、确定且可验证的算子执行。</p>
+<h2 id="7-总结推理引擎适配能力的本质">7. 总结：推理引擎适配能力的本质</h2>
+<h3 id="71-模型层运行时层与算子层的三层适配模型">7.1 模型层、运行时层与算子层的三层适配模型</h3>
+<p>可以将模型适配归纳为三层：</p>
+<pre><code>┌────────────────────────────┐│ 模型层：结构、权重、配置     
+│├────────────────────────────┤│ 运行时层：调度、Cache、并行  
+│├────────────────────────────┤│ 算子层：Kernel、量化、通信   
+│└────────────────────────────┘</code></pre>
+<p>不同类型的模型创新，会触及不同层次：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">模型变化</th>
+<th style="text-align: left;">主要影响层</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">新增普通层或修改激活函数</td>
+<td style="text-align: left;">模型层、算子层</td>
+</tr>
+<tr>
+<td style="text-align: left;">改变 KV Cache 表示</td>
+<td style="text-align: left;">模型层、运行时层、算子层</td>
+</tr>
+<tr>
+<td style="text-align: left;">引入 MoE</td>
+<td style="text-align: left;">三层均受影响</td>
+</tr>
+<tr>
+<td style="text-align: left;">引入 MTP</td>
+<td style="text-align: left;">模型层、运行时层、采样层</td>
+</tr>
+<tr>
+<td style="text-align: left;">改变并行方式</td>
+<td style="text-align: left;">运行时层、通信层</td>
+</tr>
+</tbody>
+</table>
+<p>真正成熟的推理引擎，不是让所有模型都使用同一个实现，而是建立清晰的适配边界，让变化能够被隔离在合适的层次中。</p>
+<h3 id="72-推理引擎的核心竞争力">7.2 推理引擎的核心竞争力</h3>
+<p>推理引擎的核心竞争力可以概括为四点：</p>
+<ol type="1">
+<li><strong>抽象能力</strong>：能否识别不同模型之间可复用的共同结构；</li>
+<li><strong>运行时能力</strong>：能否高效处理动态 Batch、KV Cache 和请求调度；</li>
+<li><strong>特化能力</strong>：能否针对关键模型和硬件提供高性能实现；</li>
+<li><strong>演进能力</strong>：能否在新模型出现时快速扩大抽象边界。</li>
+</ol>
+<p>如果只有抽象，没有特化，系统可能易于扩展但性能不足；如果只有特化，没有抽象，系统可能性能很高但难以维护。优秀的推理引擎需要在二者之间建立动态平衡。</p>
+<h3 id="73-从模型适配到模型与引擎共演进">7.3 从模型适配到模型与引擎共演进</h3>
+<p>随着模型结构不断创新，模型和推理引擎之间的关系正在发生变化。</p>
+<p>过去通常是：</p>
+<pre><code>模型先设计    ↓推理引擎被动适配</code></pre>
+<p>未来更可能是：</p>
+<pre><code>模型结构设计      ↔推理引擎能力      ↔硬件执行特性</code></pre>
+<p>模型设计会考虑：</p>
+<ul>
+<li>KV Cache 成本；</li>
+<li>通信开销；</li>
+<li>Kernel 可实现性；</li>
+<li>量化友好性；</li>
+<li>推理阶段的吞吐和延迟。</li>
+</ul>
+<p>推理引擎也会通过运行时反馈影响模型设计，例如：</p>
+<ul>
+<li>哪些结构更适合动态 Batch；</li>
+<li>哪些 MoE 路由方式更适合多卡；</li>
+<li>哪些 Attention 形式更节省 Cache；</li>
+<li>哪些预测机制更适合 Speculative Decoding。</li>
+</ul>
+<p>因此，模型适配的最终目标并不是让推理引擎无限承受模型复杂度，而是推动模型、引擎和硬件形成协同演进。</p>
+<blockquote>
+<p><strong>通用抽象负责扩大适配范围，特化 Kernel 负责突破性能边界，运行时与 IR 则负责在动态执行和编译优化之间建立新的连接。</strong></p>
+</blockquote>
+<p>这构成了现代推理引擎适配新模型的基本方法论。</p>
+
+</article>
+<div class="pnav">
+ <span><a href="07.2-Multi-GPU：一张卡不够时如何扩展.html">← 上一篇 07.2</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><a href="09-硬件解耦：如何不让芯片差异污染 Serving 核心.html">下一篇 09 →</a></span>
+</div>
+</body>
+</html>

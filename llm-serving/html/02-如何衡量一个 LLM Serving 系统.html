@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 如何衡量一个 LLM Serving 系统</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 02 如何衡量一个 LLM Serving 系统</div>
+<article>
+ <div class="ahead">
+  <span class="chip">02</span>
+  <h1>如何衡量一个 LLM Serving 系统</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 2 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（6 条）</summary><ol><li><a href="#1-llm-serving-指标总览">1. LLM Serving 指标总览</a></li><li><a href="#2-指标常见误区与优化方向">2. 指标常见误区与优化方向</a><ol class="lv3"><li><a href="#21-常见误区">2.1 常见误区</a></li><li><a href="#22-指标与优化方向的对应关系">2.2 指标与优化方向的对应关系</a></li></ol></li><li><a href="#23-使用原则">2.3 使用原则</a></li><li><a href="#3-本章小结">3. 本章小结</a></li></ol></details>
+<h2 id="1-llm-serving-指标总览">1. LLM Serving 指标总览</h2>
+<p>LLM Serving 的性能不能只看单一指标，而应同时关注四个维度：</p>
+<pre><code>延迟：用户需要等待多久？吞吐：系统单位时间处理多少请求和 Token？效率：GPU、显存和资金利用得好不好？服务质量：有多少请求满足 SLO？</code></pre>
+<p><strong>指标说明</strong></p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">维度</th>
+<th style="text-align: left;">指标</th>
+<th style="text-align: left;">定义</th>
+<th style="text-align: left;">主要反映</th>
+<th style="text-align: left;">常见影响因素</th>
+<th style="text-align: left;">使用注意</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>延迟</strong></td>
+<td style="text-align: left;"><strong>TTFT</strong> Time To First Token</td>
+<td style="text-align: left;">请求到达至收到第一个输出 Token 的时间</td>
+<td style="text-align: left;">首次响应速度</td>
+<td style="text-align: left;">排队、Prompt 长度、Prefill、Prefix Cache、首 Token 生成</td>
+<td style="text-align: left;">不等于 Prefill 时间，还包括排队和传输</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>延迟</strong></td>
+<td style="text-align: left;"><strong>TPOT</strong> Time Per Output Token</td>
+<td style="text-align: left;">Decode 阶段平均生成一个输出 Token 的时间</td>
+<td style="text-align: left;">平均生成速度</td>
+<td style="text-align: left;">Decode Batch、KV Cache 长度、显存带宽、Attention Kernel、量化</td>
+<td style="text-align: left;">需明确是否包含首 Token</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>延迟</strong></td>
+<td style="text-align: left;"><strong>ITL</strong> Inter-Token Latency</td>
+<td style="text-align: left;">相邻两个输出 Token 到达客户端的时间间隔</td>
+<td style="text-align: left;">流式输出的连续性和稳定性</td>
+<td style="text-align: left;">调度抖动、Batch 变化、抢占、网络传输</td>
+<td style="text-align: left;">应重点观察 P95/P99，而不只是平均值</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>延迟</strong></td>
+<td style="text-align: left;"><strong>E2E Latency</strong></td>
+<td style="text-align: left;">从请求发送至完整结果返回的总时间</td>
+<td style="text-align: left;">完整请求体验</td>
+<td style="text-align: left;">排队、Prefill、Decode、输出长度、网络</td>
+<td style="text-align: left;">长输出场景下通常受 Decode 主导</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>延迟</strong></td>
+<td style="text-align: left;"><strong>Queueing Time</strong></td>
+<td style="text-align: left;">请求到达至开始执行前的等待时间</td>
+<td style="text-align: left;">系统拥塞程度</td>
+<td style="text-align: left;">并发量、Batch 容量、Admission Control、KV Cache 空间</td>
+<td style="text-align: left;">高并发时可能成为 TTFT 的主要部分</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>吞吐</strong></td>
+<td style="text-align: left;"><strong>Output Tokens/s</strong></td>
+<td style="text-align: left;">单位时间生成的输出 Token 数</td>
+<td style="text-align: left;">Decode 吞吐</td>
+<td style="text-align: left;">Batch Size、显存带宽、Kernel、并行度</td>
+<td style="text-align: left;">适合衡量在线生成能力</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>吞吐</strong></td>
+<td style="text-align: left;"><strong>Total Tokens/s</strong></td>
+<td style="text-align: left;">单位时间处理的输入与输出 Token 总数</td>
+<td style="text-align: left;">端到端 Token 处理能力</td>
+<td style="text-align: left;">Prompt 长度、输出长度、Prefill 和 Decode 效率</td>
+<td style="text-align: left;">必须说明是否包含输入 Token</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>吞吐</strong></td>
+<td style="text-align: left;"><strong>Requests/s</strong></td>
+<td style="text-align: left;">单位时间完成的请求数</td>
+<td style="text-align: left;">业务请求处理能力</td>
+<td style="text-align: left;">请求长度、并发度、服务策略</td>
+<td style="text-align: left;">不能脱离输入输出长度单独比较</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>吞吐</strong></td>
+<td style="text-align: left;"><strong>Goodput</strong></td>
+<td style="text-align: left;">单位时间内满足 SLO 的有效请求或 Token 数</td>
+<td style="text-align: left;">满足服务质量后的有效吞吐</td>
+<td style="text-align: left;">吞吐、尾延迟、调度、Admission Control</td>
+<td style="text-align: left;">比理论吞吐更接近实际服务价值</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>资源效率</strong></td>
+<td style="text-align: left;"><strong>MFU</strong> Model FLOPs Utilization</td>
+<td style="text-align: left;">实际模型 FLOPs/s 与理论峰值 FLOPs/s 的比值</td>
+<td style="text-align: left;">计算单元利用效率</td>
+<td style="text-align: left;">GEMM 规模、算子融合、Kernel 调度</td>
+<td style="text-align: left;">Decode 可能受显存带宽限制，MFU 低不一定代表低效</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>资源效率</strong></td>
+<td style="text-align: left;"><strong>GPU 利用率</strong></td>
+<td style="text-align: left;">GPU 活跃时间占比</td>
+<td style="text-align: left;">GPU 是否持续工作</td>
+<td style="text-align: left;">计算、访存、通信、调度和 Kernel Launch</td>
+<td style="text-align: left;">需要结合 HBM 带宽和 Tokens/s 判断</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>资源效率</strong></td>
+<td style="text-align: left;"><strong>显存利用率</strong></td>
+<td style="text-align: left;">已使用显存与可用显存的比例</td>
+<td style="text-align: left;">并发和上下文容量</td>
+<td style="text-align: left;">权重、KV Cache、激活、通信 Buffer、运行时开销</td>
+<td style="text-align: left;">显存不仅决定模型能否加载，也决定并发度</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>资源效率</strong></td>
+<td style="text-align: left;"><strong>Cost per Token</strong></td>
+<td style="text-align: left;">处理一个 Token 的综合成本</td>
+<td style="text-align: left;">经济效率</td>
+<td style="text-align: left;">GPU 成本、吞吐、利用率、量化、SLO</td>
+<td style="text-align: left;">应明确按输入、输出还是有效 Token 计算</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>服务质量</strong></td>
+<td style="text-align: left;"><strong>P50</strong></td>
+<td style="text-align: left;">50% 请求不超过该延迟</td>
+<td style="text-align: left;">典型请求体验</td>
+<td style="text-align: left;">常规负载</td>
+<td style="text-align: left;">不能代表尾部请求</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>服务质量</strong></td>
+<td style="text-align: left;"><strong>P95</strong></td>
+<td style="text-align: left;">95% 请求不超过该延迟</td>
+<td style="text-align: left;">大多数用户体验</td>
+<td style="text-align: left;">负载波动、请求长度、调度</td>
+<td style="text-align: left;">常用于在线服务 SLO</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>服务质量</strong></td>
+<td style="text-align: left;"><strong>P99</strong></td>
+<td style="text-align: left;">99% 请求不超过该延迟</td>
+<td style="text-align: left;">尾部请求体验</td>
+<td style="text-align: left;">长请求、资源竞争、抢占、网络抖动</td>
+<td style="text-align: left;">对多租户和交互式服务尤其重要</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>服务质量</strong></td>
+<td style="text-align: left;"><strong>SLO 达标率</strong></td>
+<td style="text-align: left;">满足预设延迟或吞吐目标的请求比例</td>
+<td style="text-align: left;">服务稳定性</td>
+<td style="text-align: left;">TTFT、ITL、E2E、排队和错误率</td>
+<td style="text-align: left;">Goodput 的计算基础之一</td>
+</tr>
+</tbody>
+</table>
+<h2 id="2-指标常见误区与优化方向">2. 指标常见误区与优化方向</h2>
+<p>LLM Serving 的各项指标并非相互独立。不同指标暴露的是不同阶段或不同资源的瓶颈，因此应根据指标异常选择优化方向，而不是笼统地追求 GPU 利用率或总吞吐。</p>
+<h3 id="21-常见误区">2.1 常见误区</h3>
+<h4 id="误区一只看平均延迟">误区一：只看平均延迟</h4>
+<p>平均值可能掩盖严重的尾延迟问题。在线服务通常应同时报告：</p>
+<pre><code>平均值 + P50 + P95 + P99 + SLO 达标率</code></pre>
+<p>尤其是在动态批处理和多租户环境中，少量长请求可能显著拖高 P99。</p>
+<h4 id="误区二将-ttft-等同于-prefill-时间">误区二：将 TTFT 等同于 Prefill 时间</h4>
+<p>TTFT 通常还包括：</p>
+<pre><code>排队时间 + 调度等待 + Prefill + 首 Token 生成 + 网络传输</code></pre>
+<p>因此 TTFT 过高不一定意味着 Prefill Kernel 低效，也可能是请求在队列中等待过久。</p>
+<h4 id="误区三只用-tpot-衡量流式体验">误区三：只用 TPOT 衡量流式体验</h4>
+<p>TPOT 是平均值，而用户实际感受到的是每个 Token 的到达间隔。调度抖动、Batch 动态变化和通信阻塞可能导致平均 TPOT 正常，但 ITL 的 P95/P99 很差。</p>
+<h4 id="误区四用-gpu-利用率判断系统是否高效">误区四：用 GPU 利用率判断系统是否高效</h4>
+<p>GPU 利用率较高，可能只是 GPU 在等待显存访问或通信；GPU 利用率较低，也可能是系统受限于显存带宽、请求不足或模型并行通信。因此需要结合以下指标共同判断：</p>
+<ul>
+<li>HBM 带宽利用率；</li>
+<li>Kernel 执行时间；</li>
+<li>MFU；</li>
+<li>Decode TPOT；</li>
+<li>GPU 间通信时间；</li>
+<li>有效 Tokens/s。</li>
+</ul>
+<h4 id="误区五只比较-requestss">误区五：只比较 Requests/s</h4>
+<p>不同测试的 Prompt 长度、Output 长度和请求分布不同，Requests/s 很难直接比较。更合理的报告方式是同时给出：</p>
+<pre><code>并发数、输入 Token 数、输出 Token 数、Output Tokens/s、Total Tokens/s、TTFT、TPOT/ITL 和 P99</code></pre>
+<h4 id="误区六显存占用越高越好">误区六：显存占用越高越好</h4>
+<p>提高 KV Cache 使用率有助于增加并发，但过度填充显存可能造成：</p>
+<ul>
+<li>新请求无法接入；</li>
+<li>长请求触发抢占；</li>
+<li>KV Cache 频繁换入换出；</li>
+<li>P99 延迟显著升高；</li>
+<li>系统出现 OOM 风险。</li>
+</ul>
+<p>因此，显存利用率应与并发度、KV Cache 命中率、抢占率和尾延迟联合分析。</p>
+<h3 id="22-指标与优化方向的对应关系">2.2 指标与优化方向的对应关系</h3>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">指标或现象</th>
+<th style="text-align: left;">主要暴露的问题</th>
+<th style="text-align: left;">重点优化方向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>TTFT 过高</strong></td>
+<td style="text-align: left;">排队时间长、Prefill 计算量大或首 Token 调度不及时</td>
+<td style="text-align: left;">减少排队、优化 Prefill Kernel、使用 Prefix Cache、采用 Chunked Prefill、改进请求优先级</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>ITL / TPOT 过高</strong></td>
+<td style="text-align: left;">Decode 阶段访存效率低、KV Cache 访问开销大或 Batch 调度不合理</td>
+<td style="text-align: left;">优化 Decode Kernel、改进 KV Cache 布局和访问、减少通信开销、优化 Continuous Batching</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>吞吐不足</strong></td>
+<td style="text-align: left;">有效 Batch 太小、计算或显存带宽利用率低</td>
+<td style="text-align: left;">增大有效 Batch、提高算力和带宽利用率、优化 Kernel、减少 CPU/GPU 调度开销</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>P99 过高</strong></td>
+<td style="text-align: left;">长请求竞争、动态 Batch 抖动、资源争用或排队失控</td>
+<td style="text-align: left;">控制长 Prefill、限制最大上下文、隔离不同长度请求、改进调度、增加限流和 Admission Control</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>KV Cache 不足</strong></td>
+<td style="text-align: left;">上下文过长、并发过高或 KV Cache 管理效率低</td>
+<td style="text-align: left;">使用 PagedAttention、Prefix Cache、KV 量化、KV Cache 复用和抢占</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>GPU 利用率低但 TTFT 高</strong></td>
+<td style="text-align: left;">请求排队、调度间隙或并发不足</td>
+<td style="text-align: left;">优化请求准入、动态批处理、调度粒度和 CPU/GPU 协同</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>GPU 利用率高但吞吐低</strong></td>
+<td style="text-align: left;">可能受显存带宽、Kernel 效率或通信瓶颈限制</td>
+<td style="text-align: left;">优化内存访问、融合 Kernel、量化、减少同步和跨卡通信</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Prefill 很快但 Decode 很慢</strong></td>
+<td style="text-align: left;">Decode 的小矩阵计算和 KV Cache 访存成为瓶颈</td>
+<td style="text-align: left;">优化 Decode 专用 Kernel、改进 KV Cache 布局、调整 Decode Batch 和并行策略</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>吞吐高但 Goodput 低</strong></td>
+<td style="text-align: left;">系统牺牲延迟换取吞吐，导致大量请求违反 SLO</td>
+<td style="text-align: left;">引入 SLO-aware 调度、限制 Batch 上限、控制长请求、优化资源隔离</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>P99 随并发快速恶化</strong></td>
+<td style="text-align: left;">系统接近饱和，排队和资源竞争出现非线性增长</td>
+<td style="text-align: left;">设置并发上限、实施 Admission Control、区分请求优先级、扩展实例或进行负载分片</td>
+</tr>
+</tbody>
+</table>
+<h2 id="23-使用原则">2.3 使用原则</h2>
+<p>指标分析应遵循以下顺序：</p>
+<pre><code>先确认指标口径  
+↓区分 Prefill、Decode、排队和网络因素  
+↓观察平均值与 P95/P99 的差异  
+↓结合 GPU、显存、带宽和通信指标定位瓶颈  
+↓选择与指标对应的优化方向  
+↓用 Goodput 和 SLO 达标率验证优化是否有效</code></pre>
+<p>核心原则是：</p>
+<blockquote>
+<p>不同指标对应不同瓶颈，不同瓶颈对应不同优化手段。 不能用提高吞吐的方法解决 TTFT，也不能用单纯增加 GPU 利用率的方法解决 P99 或 KV Cache 容量问题。</p>
+</blockquote>
+<h2 id="3-本章小结">3. 本章小结</h2>
+<p>LLM Serving 的指标体系可以归纳为：</p>
+<pre><code>延迟：TTFT、TPOT、ITL、E2E吞吐：Tokens/s、Requests/s、Goodput效率：MFU、GPU 利用率、显存利用率、Cost per Token质量：P50、P95、P99、SLO 达标率</code></pre>
+<p>其中最重要的区别是：</p>
+<blockquote>
+<p>吞吐衡量系统处理了多少工作； 延迟衡量用户等待了多久； Goodput 衡量系统在满足 SLO 的前提下完成了多少有效工作。</p>
+</blockquote>
+
+
+</article>
+<div class="pnav">
+ <span><a href="01-为什么 LLM Serving 比传统 DL 推理难.html">← 上一篇 01</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><a href="03-鸟瞰 vLLM：一个请求如何穿过整个推理系统.html">下一篇 03 →</a></span>
+</div>
+</body>
+</html>

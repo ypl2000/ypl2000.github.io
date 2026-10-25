@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07.2 Multi-GPU：一张卡不够时如何扩展</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 07.2 Multi-GPU：一张卡不够时如何扩展</div>
+<article>
+ <div class="ahead">
+  <span class="chip">07.2</span>
+  <h1>Multi-GPU：一张卡不够时如何扩展（下 · 通信优化）</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 8 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（6 条）</summary><ol><li><a href="#2-通信优化推理系统的性能深水区">2. 通信优化：推理系统的性能深水区</a><ol class="lv3"><li><a href="#21-数据流向图谱谁在拖慢速度">2.1 数据流向图谱：谁在拖慢速度？</a></li><li><a href="#22-nccl多-gpu-通信的默认底座">2.2 NCCL：多 GPU 通信的默认底座</a></li><li><a href="#23-计算与通信的深度重叠隐藏等待时间">2.3 计算与通信的深度重叠：隐藏等待时间</a></li><li><a href="#24-通信问题的定位方法">2.4 通信问题的定位方法</a></li><li><a href="#25-小结通信优化的优先级">2.5 小结：通信优化的优先级</a></li></ol></li></ol></details>
+<h2 id="2-通信优化推理系统的性能深水区">2. 通信优化：推理系统的性能深水区</h2>
+<p>在多 GPU 推理系统中，计算单元的利用率往往受限于通信延迟和数据移动开销。尤其是在 Decode 阶段，单步生成的 Token 数量很少，矩阵乘法的计算量下降，而跨 GPU 同步仍然存在，通信启动延迟、同步等待和小消息处理效率就会变得格外重要。</p>
+<p>如果把计算看作引擎，通信就是制约其转速的传动系统：链路带宽决定数据能够搬得多快，通信延迟决定每次搬运需要等多久，而计算与通信能否重叠，则决定了这段等待能否被隐藏。</p>
+<p>因此，通信优化不能只看“链路峰值带宽”，还需要同时关注：</p>
+<ul>
+<li>数据经过哪条物理链路；</li>
+<li>通信发生在初始化阶段还是推理关键路径；</li>
+<li>消息是小而频繁，还是大而集中；</li>
+<li>通信是否引入全局同步；</li>
+<li>通信能否与计算重叠；</li>
+<li>实际拓扑是否与并行策略匹配。</li>
+</ul>
+<h3 id="21-数据流向图谱谁在拖慢速度">2.1 数据流向图谱：谁在拖慢速度？</h3>
+<p>在讨论通信优化之前，先把一次推理中的主要数据移动路径展开来看。</p>
+<p>需要注意的是，模型推理可以粗略分为两个阶段：</p>
+<ul>
+<li><strong>初始化阶段</strong>：加载模型权重、建立通信域、分配 KV Cache；</li>
+<li><strong>推理阶段</strong>：循环执行 Prefill 或 Decode，包括输入传递、层间计算、跨 GPU 通信、采样和 KV Cache 管理。</li>
+</ul>
+<p>模型权重加载通常只发生一次，虽然数据量很大，但一般不属于每个请求或每个 Token 的关键路径。真正决定在线推理性能的，主要是推理循环中的高频通信。</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145608604。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923145608604.png</code></figcaption></figure></p>
+<p>从系统角度看，通信链路大致可以分成三类。</p>
+<p><strong>1、CPU 与 GPU 之间</strong></p>
+<p>CPU-GPU 通信通常经过 PCIe。典型数据包括：</p>
+<ul>
+<li><code>input_ids</code>；</li>
+<li><code>positions</code>；</li>
+<li>调度器生成的元数据；</li>
+<li>采样结果；</li>
+<li>被抢占或换出的 KV Cache Block。</li>
+</ul>
+<p>这些数据的规模和频率差异很大。输入 Token 和采样结果通常只有 KB 级别，数据量并不大；KV Cache Swap 则可能一次搬运大量数据，但通常只在显存压力较高或发生抢占时触发。</p>
+<p><strong>2、同一节点内的 GPU 之间</strong></p>
+<p>同机 GPU 之间可能通过以下路径通信：</p>
+<ul>
+<li>NVLink；</li>
+<li>NVSwitch；</li>
+<li>PCIe P2P；</li>
+<li>经过 CPU Root Complex 的 PCIe 路径。</li>
+</ul>
+<p>对于 Tensor Parallel，激活需要在 GPU 之间频繁进行 <code>All-Reduce</code>、<code>All-Gather</code> 或 <code>Reduce-Scatter</code>。对于 Expert Parallel，Token Dispatch 通常需要 <code>All-to-All</code>，这类通信更容易受到拓扑、消息布局和负载均衡的影响。</p>
+<p><strong>3、跨节点 GPU 之间</strong></p>
+<p>跨节点通信通常经过：</p>
+<pre><code>GPU HBM  ↓PCIe  ↓NIC  ↓InfiniBand / RoCE  ↓远端 NIC  ↓PCIe  ↓远端 GPU HBM</code></pre>
+<p>如果使用 GPUDirect RDMA，网络设备可以更直接地访问 GPU 显存，减少不必要的 CPU 内存中转。否则，数据可能需要经过 Host Memory，额外增加拷贝次数和延迟。</p>
+<p>下面是典型链路的带宽量级：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">链路</th>
+<th style="text-align: right;">理论带宽量级</th>
+<th style="text-align: left;">说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">NVLink / NVSwitch</td>
+<td style="text-align: right;">数百 GB/s，具体取决于 GPU、代际和拓扑</td>
+<td style="text-align: left;">通常是机内 GPU 通信的首选路径</td>
+</tr>
+<tr>
+<td style="text-align: left;">PCIe Gen5 x16</td>
+<td style="text-align: right;">约 64 GB/s，单向理论值</td>
+<td style="text-align: left;">实际有效带宽低于理论值</td>
+</tr>
+<tr>
+<td style="text-align: left;">InfiniBand NDR 400 Gb/s</td>
+<td style="text-align: right;">约 50 GB/s，原始线速折算</td>
+<td style="text-align: left;">实际有效带宽受协议和实现影响</td>
+</tr>
+<tr>
+<td style="text-align: left;">RoCE</td>
+<td style="text-align: right;">取决于网卡和网络配置</td>
+<td style="text-align: left;">对拥塞控制、交换机配置更敏感</td>
+</tr>
+</tbody>
+</table>
+<p>这里需要避免将不同口径的带宽直接等价比较。例如，NVLink 或 NVSwitch 的宣传带宽可能是单 GPU 聚合带宽、双向带宽或系统总带宽，而 PCIe 和 InfiniBand 常按单向链路带宽描述。实际性能还取决于拓扑、并发度、消息大小和通信算法。</p>
+<p>下面是主要数据移动类型的分析：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">数据移动类型</th>
+<th style="text-align: left;">方向</th>
+<th style="text-align: right;">触发频率</th>
+<th style="text-align: right;">数据量 / 带宽要求</th>
+<th style="text-align: left;">常见技术</th>
+<th style="text-align: left;">性能影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">模型权重加载</td>
+<td style="text-align: left;">CPU → GPU</td>
+<td style="text-align: right;">初始化一次</td>
+<td style="text-align: right;">高</td>
+<td style="text-align: left;">PCIe DMA、分片加载</td>
+<td style="text-align: left;">影响启动时间</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>input_ids</code> / <code>positions</code></td>
+<td style="text-align: left;">CPU ↔︎ GPU</td>
+<td style="text-align: right;">每步</td>
+<td style="text-align: right;">低，通常为 KB 级</td>
+<td style="text-align: left;">PCIe、Pinned Memory</td>
+<td style="text-align: left;">通常不是主要瓶颈</td>
+</tr>
+<tr>
+<td style="text-align: left;">TP 集合通信</td>
+<td style="text-align: left;">GPU ↔︎ GPU</td>
+<td style="text-align: right;">典型情况下每层多次</td>
+<td style="text-align: right;">高</td>
+<td style="text-align: left;">NCCL、CustomAllreduce</td>
+<td style="text-align: left;">关键路径</td>
+</tr>
+<tr>
+<td style="text-align: left;">PP 微批传递</td>
+<td style="text-align: left;">GPU → GPU</td>
+<td style="text-align: right;">Stage 之间</td>
+<td style="text-align: right;">中</td>
+<td style="text-align: left;">NCCL P2P、Send / Recv</td>
+<td style="text-align: left;">影响流水线气泡</td>
+</tr>
+<tr>
+<td style="text-align: left;">EP Token Dispatch</td>
+<td style="text-align: left;">GPU ↔︎ GPU</td>
+<td style="text-align: right;">每个 MoE 层</td>
+<td style="text-align: right;">高</td>
+<td style="text-align: left;">NCCL All-to-All</td>
+<td style="text-align: left;">关键路径</td>
+</tr>
+<tr>
+<td style="text-align: left;">KV Cache Swap</td>
+<td style="text-align: left;">GPU ↔︎ CPU</td>
+<td style="text-align: right;">抢占或显存不足时</td>
+<td style="text-align: right;">高</td>
+<td style="text-align: left;">异步 PCIe 拷贝</td>
+<td style="text-align: left;">影响异常请求和尾延迟</td>
+</tr>
+<tr>
+<td style="text-align: left;">Sampled Token</td>
+<td style="text-align: left;">GPU → CPU</td>
+<td style="text-align: right;">每步</td>
+<td style="text-align: right;">极低，通常为整数</td>
+<td style="text-align: left;">Device-to-Host Copy</td>
+<td style="text-align: left;">通常不是带宽瓶颈</td>
+</tr>
+</tbody>
+</table>
+<p>因此，不能简单地说“所有通信都值得优化”。更准确的结论是：</p>
+<blockquote>
+<p>TP 集合通信和 EP Token Dispatch 通常是最值得优先优化的通信路径，因为它们既可能数据量较大，又处于模型层级或 Token 路由的同步依赖链上。CPU-GPU 小消息则更需要关注调用次数、同步方式和启动延迟，而不是链路带宽。</p>
+</blockquote>
+<h3 id="22-nccl多-gpu-通信的默认底座">2.2 NCCL：多 GPU 通信的默认底座</h3>
+<p>NCCL（NVIDIA Collective Communications Library）是 NVIDIA 提供的 GPU 集合通信库，主要为多 GPU 和多节点场景提供高性能通信原语。</p>
+<p>它并不负责模型如何切分，也不负责调度 Transformer 层；它负责的是：当模型代码要求多个 GPU 进行数据交换或规约时，以尽可能高效的方式完成这些操作。</p>
+<p>常见的 NCCL 通信原语包括：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">通信原语</th>
+<th style="text-align: left;">含义</th>
+<th style="text-align: left;">推理中的典型用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>All-Reduce</code></td>
+<td style="text-align: left;">所有 GPU 对数据进行规约，并获得完整结果</td>
+<td style="text-align: left;">TP 中合并部分结果</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>All-Gather</code></td>
+<td style="text-align: left;">每张 GPU 提供一部分数据，最终所有 GPU 获得完整数据</td>
+<td style="text-align: left;">收集分片激活或参数</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Reduce-Scatter</code></td>
+<td style="text-align: left;">先规约，再将结果分片发送给不同 GPU</td>
+<td style="text-align: left;">以分片结果直接进入后续计算</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>All-to-All</code></td>
+<td style="text-align: left;">每张 GPU 向所有其他 GPU 发送不同数据</td>
+<td style="text-align: left;">EP Token Dispatch</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Broadcast</code></td>
+<td style="text-align: left;">一张 GPU 将数据发送给所有 GPU</td>
+<td style="text-align: left;">广播控制数据或共享状态</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>Send / Recv</code></td>
+<td style="text-align: left;">点对点发送与接收</td>
+<td style="text-align: left;">PP Stage 之间传递激活</td>
+</tr>
+</tbody>
+</table>
+<p>在 vLLM 或类似推理框架中，模型并行代码通常不会直接管理底层的 NVLink、PCIe 或 InfiniBand。上层只需要调用相应的集合通信接口，底层通信库再根据当前硬件和进程组执行实际的数据移动。</p>
+<h4 id="221-nccl-如何选择通信路径">2.2.1 NCCL 如何选择通信路径？</h4>
+<p>NCCL 会根据 GPU 拓扑、节点结构、消息规模和可用网络设备选择通信方式。典型路径如下：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145542515。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923145542515.png</code></figcaption></figure></p>
+<p>同一节点内，NCCL 优先使用 NVLink 或 NVSwitch；如果 GPU 之间没有直接 NVLink，则可能使用 PCIe P2P。跨节点时，则需要通过 NIC 和 InfiniBand 或 RoCE 网络进行通信。</p>
+<p>通信性能因此高度依赖物理拓扑。相同数量的 GPU，如果一种机器采用 NVSwitch，而另一种机器主要依赖 PCIe，TP 通信性能可能存在明显差异。跨节点场景中，如果 GPUDirect RDMA 没有正常启用，数据经过 CPU 内存中转，也可能造成显著性能下降。</p>
+<h4 id="222-ringtree-与通信协议">2.2.2 Ring、Tree 与通信协议</h4>
+<p>NCCL 内部会根据场景选择不同的通信算法。常见算法包括：</p>
+<ul>
+<li><strong>Ring</strong>：将 GPU 组织成环，通常能够较好地利用链路带宽，适合较大的消息；</li>
+<li><strong>Tree</strong>：将 GPU 组织成树状结构，通信步数可能更少，适合延迟敏感或特定拓扑；</li>
+<li><strong>分层算法</strong>：先完成机内通信，再完成跨节点通信，或者反过来组合执行。</li>
+</ul>
+<p>实际选择并不是“Ring 永远适合大消息、Tree 永远适合小消息”这么简单，还会受到 GPU 拓扑、节点数、网络结构、集合通信类型和消息大小的影响。</p>
+<p>NCCL 还会根据消息规模选择不同的通信协议。小消息更关注启动延迟和同步开销，大消息更关注链路带宽和数据吞吐。因此，Decode 与 Prefill 可能呈现完全不同的通信特征：</p>
+<ul>
+<li>Decode：消息较小、调用频繁，更容易受启动延迟影响；</li>
+<li>Prefill：激活规模更大，更容易受有效带宽影响；</li>
+<li>MoE：除了带宽，还需要关注 Token 重排、负载不均衡和 All-to-All 的同步特性。</li>
+</ul>
+<h4 id="223-vllm-中的通信抽象">2.2.3 vLLM 中的通信抽象</h4>
+<p>vLLM 对通信后端进行了抽象，使模型代码不需要直接感知底层使用 NCCL、P2P 还是其他实现。整体可以理解为三层：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">接口或组件</th>
+<th style="text-align: left;">主要职责</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">最高层：集合通信 API</td>
+<td style="text-align: left;"><code>tensor_model_parallel_all_reduce()</code> <code>tensor_model_parallel_all_gather()</code> <code>tensor_model_parallel_reduce_scatter()</code></td>
+<td style="text-align: left;">模型代码调用集合通信</td>
+</tr>
+<tr>
+<td style="text-align: left;">中间层：<code>GroupCoordinator</code></td>
+<td style="text-align: left;"><code>all_reduce()</code>、<code>all_gather()</code>、<code>send()</code>、<code>recv()</code></td>
+<td style="text-align: left;">管理进程组和通信协调</td>
+</tr>
+<tr>
+<td style="text-align: left;">底层：设备通信器</td>
+<td style="text-align: left;"><code>CudaCommunicator</code>、<code>CustomAllreduce</code>、<code>FlashInferAllReduce</code>、<code>CpuCommunicator</code>、<code>XpuCommunicator</code></td>
+<td style="text-align: left;">执行具体的设备或网络通信</td>
+</tr>
+</tbody>
+</table>
+<p>其中，<code>CudaCommunicator</code> 通常对应 NCCL 路径；<code>CpuCommunicator</code> 可用于 CPU 通信；在特定硬件和场景下，还可能使用 FlashInfer 或其他专门优化的实现。</p>
+<p>这种分层的意义在于：上层模型代码只表达“我要做一次 All-Reduce”，而不必关心底层是通过 NVLink、PCIe、InfiniBand，还是某种专用 Kernel 完成的。</p>
+<h4 id="224-customallreduce针对特定场景的优化">2.2.4 <code>CustomAllreduce</code>：针对特定场景的优化</h4>
+<p>除了 NCCL，vLLM 还提供了 <code>CustomAllreduce</code>。它的目标不是全面替代 NCCL，而是在满足特定条件时，针对机内小消息通信进一步降低固定开销。</p>
+<p>其典型特点包括：</p>
+<ul>
+<li>面向特定的 GPU 数量和进程组配置；</li>
+<li>基于 GPU P2P 和直接内存访问；</li>
+<li>针对固定机内拓扑进行优化；</li>
+<li>在小张量场景下，可能比通用 NCCL 路径具有更低的启动和同步开销；</li>
+<li>某些实现可利用 Hopper 等新架构提供的对称内存能力。</li>
+</ul>
+<p>需要特别强调，<code>CustomAllreduce</code> 并不是“任何场景都比 NCCL 快”。它通常更适合：</p>
+<ul>
+<li>单机多卡；</li>
+<li>GPU 之间具备良好的 P2P 或 NVLink 连接；</li>
+<li>通信消息较小；</li>
+<li>通信模式固定；</li>
+<li>对 Decode 阶段的低延迟较敏感。</li>
+</ul>
+<p>而 NCCL 更适合：</p>
+<ul>
+<li>复杂的机内拓扑；</li>
+<li>跨节点通信；</li>
+<li>较大的消息；</li>
+<li>多种集合通信原语；</li>
+<li>需要成熟的拓扑发现、调度和容错能力的场景。</li>
+</ul>
+<p>因此，两者的关系更准确地说是：</p>
+<blockquote>
+<p>NCCL 提供通用、高度成熟的多 GPU 通信底座；<code>CustomAllreduce</code> 则针对固定拓扑和特定消息规模，压缩通用通信库在调度、缓冲区管理和同步上的额外开销。</p>
+</blockquote>
+<p>具体支持的 GPU 数量、架构和启用条件可能随 vLLM 版本变化，实际使用时应以对应版本的源码和运行时检查结果为准。</p>
+<h4 id="225-nccl-的调试与调优入口">2.2.5 NCCL 的调试与调优入口</h4>
+<p>NCCL 的调优应遵循“先确认拓扑，再定位瓶颈，最后修改参数”的顺序，而不是一开始就设置大量环境变量。</p>
+<p>常见的调试变量包括：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">环境变量</th>
+<th style="text-align: left;">作用</th>
+<th style="text-align: left;">使用建议</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><code>NCCL_DEBUG=INFO</code></td>
+<td style="text-align: left;">输出 NCCL 初始化和通信信息</td>
+<td style="text-align: left;">排查问题时临时开启</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>NCCL_DEBUG_SUBSYS=INIT,GRAPH,NET</code></td>
+<td style="text-align: left;">限定调试信息类别</td>
+<td style="text-align: left;">查看拓扑和网络选择</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>NCCL_SOCKET_IFNAME</code></td>
+<td style="text-align: left;">指定 Socket 网卡接口</td>
+<td style="text-align: left;">多网卡环境中明确通信网卡</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>NCCL_IB_HCA</code></td>
+<td style="text-align: left;">指定 InfiniBand HCA</td>
+<td style="text-align: left;">多 HCA 环境中避免选错设备</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>NCCL_IB_GID_INDEX</code></td>
+<td style="text-align: left;">指定 RoCE GID</td>
+<td style="text-align: left;">按实际网络配置设置</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>NCCL_P2P_LEVEL</code></td>
+<td style="text-align: left;">控制 GPU P2P 的使用范围</td>
+<td style="text-align: left;">不建议无依据修改</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>NCCL_NET_GDR_LEVEL</code></td>
+<td style="text-align: left;">控制 GPUDirect RDMA 使用条件</td>
+<td style="text-align: left;">跨节点排查时关注</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>NCCL_ALGO</code></td>
+<td style="text-align: left;">指定通信算法</td>
+<td style="text-align: left;">适合基准测试和针对性实验</td>
+</tr>
+<tr>
+<td style="text-align: left;"><code>NCCL_PROTO</code></td>
+<td style="text-align: left;">指定通信协议</td>
+<td style="text-align: left;">不建议生产环境盲目固定</td>
+</tr>
+</tbody>
+</table>
+<p>首先可以检查 GPU 拓扑：</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nvidia-smi</span> topo <span class="at">-m</span></span></code></pre></div>
+<p>然后使用 NCCL Tests 对集合通信进行基准测试，例如：</p>
+<pre><code>./build/all_reduce_perf -b 8 -e 2G -f 2 -g 2</code></pre>
+<p>如果机内 NCCL 测试结果已经明显低于硬件预期，应优先检查：</p>
+<ul>
+<li>GPU 是否通过 NVLink 或 NVSwitch 连接；</li>
+<li>GPU P2P 是否正常；</li>
+<li>PCIe Root Complex 和 NUMA 绑定是否合理；</li>
+<li>是否发生了不必要的 Host Memory 中转。</li>
+</ul>
+<p>如果是跨节点性能异常，则需要检查：</p>
+<ul>
+<li>InfiniBand 或 RoCE 链路；</li>
+<li>NCCL 是否选中了正确网卡；</li>
+<li>GPUDirect RDMA 是否生效；</li>
+<li>网卡和 GPU 的 NUMA 亲和性；</li>
+<li>网络拥塞和交换机配置。</li>
+</ul>
+<p>只有在这些基础条件确认无误后，才值得进一步实验 <code>NCCL_ALGO</code>、<code>NCCL_PROTO</code> 等参数。否则，修改参数很容易掩盖真正的拓扑或硬件配置问题。</p>
+<h3 id="23-计算与通信的深度重叠隐藏等待时间">2.3 计算与通信的深度重叠：隐藏等待时间</h3>
+<p>即使通信链路已经达到较高带宽，如果计算和通信仍然严格串行，通信时间依然会完整地暴露在端到端延迟中。</p>
+<p><strong>没有重叠时</strong></p>
+<pre><code>时间 →
+Compute  [GEMM₁][── idle ──][GEMM₂][── idle ──][GEMM₃]Comm     [ idle ][AllReduce₁][ idle ][AllReduce₂][ idle ]总时间 ≈ T_compute + T_comm</code></pre>
+<p>此时，计算完成后必须等待通信，通信完成后才能继续下一段计算。GPU 的计算单元可能在等待通信，而通信单元也可能在等待计算产生输入。</p>
+<p><strong>发生重叠时</strong></p>
+<pre><code>时间 →Compute  [GEMM₁      ][GEMM₂      ][GEMM₃      ]Comm          [AllReduce₁][AllReduce₂]总时间 ≈ max(T_compute, T_comm)</code></pre>
+<p>所以这里的目标不是减少通信本身的字节数，而是让通信时间尽可能被计算时间覆盖。</p>
+<h4 id="231-使用独立-cuda-stream">2.3.1 使用独立 CUDA Stream</h4>
+<p>最基础的手段是将通信任务调度到独立的 CUDA Stream 上：</p>
+<ul>
+<li>计算任务运行在计算 Stream；</li>
+<li>NCCL 集合通信运行在通信 Stream；</li>
+<li>通过 CUDA Event 或显式依赖保证数据就绪后再启动通信；</li>
+<li>后续计算在通信完成后等待相应 Event。</li>
+</ul>
+<p>概念上可以表示为：</p>
+<pre><code>Compute Stream:  [产生激活]────────────[继续计算]                         \  
+↑Communication Stream:     [All-Reduce]─┘</code></pre>
+<p>但“放到不同 Stream”并不自动意味着真正重叠。以下条件不满足时，两个 Stream 仍然可能串行：</p>
+<ul>
+<li>通信和计算争用同一硬件资源；</li>
+<li>存在隐式同步；</li>
+<li>通信输入尚未准备好；</li>
+<li>后续计算必须等待完整通信结果；</li>
+<li>算子或运行时插入了全设备同步。</li>
+</ul>
+<p>因此，重叠优化的关键不只是创建多个 Stream，而是重新设计依赖关系。</p>
+<h4 id="232-用-reduce-scatter-与-all-gather-拆解-all-reduce">2.3.2 用 Reduce-Scatter 与 All-Gather 拆解 All-Reduce</h4>
+<p>在数学上：</p>
+<pre><code>All-Reduce = Reduce-Scatter + All-Gather</code></pre>
+<p><code>All-Reduce</code> 会让每张 GPU 最终获得完整的规约结果。将其拆成两个阶段后，第一阶段 <code>Reduce-Scatter</code> 会先完成规约，并将结果分片分发到不同 GPU。</p>
+<p>如果后续计算能够按分片执行，那么某张 GPU 获得自己的局部结果后，就可以先开始处理这一部分数据，同时让 <code>All-Gather</code> 在后台继续收集其他分片。</p>
+<pre><code>Reduce-Scatter  →  本地分片就绪 → 局部计算                         │
+└──────→ All-Gather 在后台继续</code></pre>
+<p>这样做的本质，是把原本要求“完整结果就绪”的依赖，改造成“局部结果就绪即可开始局部计算”的依赖。</p>
+<p>但是，这种优化并非对所有模型结构都自动有效。它至少需要满足：</p>
+<ul>
+<li>后续计算能够处理分片数据；</li>
+<li>模型依赖允许局部结果先行；</li>
+<li>All-Gather 不会在计算开始后立即重新形成阻塞；</li>
+<li>通信 Stream 与计算 Stream 之间的依赖安排合理。</li>
+</ul>
+<p>此外，拆分后的总通信量通常仍与直接 All-Reduce 处于同一量级，真正的收益来自通信与计算的重叠，而不是简单减少了通信字节数。</p>
+<h4 id="233-moe-中重叠-all-to-all-与-expert-gemm">2.3.3 MoE 中重叠 All-to-All 与 Expert GEMM</h4>
+<p>MoE 模型的通信流程通常包括：</p>
+<pre><code>Token Routing  
+↓Token Dispatch / All-to-All  
+↓Expert GEMM  
+↓Token Combine / All-to-All</code></pre>
+<p>如果所有 Token 必须完成分发后，Expert 才开始计算，通信延迟就会完整暴露出来。更进一步的实现会尝试：</p>
+<ul>
+<li>尽早计算路由结果；</li>
+<li>分块进行 Token Dispatch；</li>
+<li>某一批 Token 到达后立即启动对应 Expert GEMM；</li>
+<li>Expert 计算的同时继续传输下一批 Token；</li>
+<li>计算完成后分块执行 Token Combine。</li>
+</ul>
+<p>概念上可以形成如下流水线：</p>
+<pre><code>时间 →Dispatch   [Batch₁][Batch₂][Batch₃]Expert          [GEMM₁ ][GEMM₂ ][GEMM₃ ]Combine                  [Combine₁][Combine₂]</code></pre>
+<p>不过，MoE 的重叠难度通常高于普通 TP 通信，因为它还受到以下因素影响：</p>
+<ul>
+<li>Token 路由是否均衡；</li>
+<li>每个 Expert 收到的 Token 数量是否稳定；</li>
+<li>All-to-All 的消息是否足够大；</li>
+<li>Token 重排和内存布局是否高效；</li>
+<li>Expert GEMM 是否具备足够计算量；</li>
+<li>是否存在容量限制和丢弃 Token 的机制。</li>
+</ul>
+<p>因此，MoE 通信优化不仅是“把 All-to-All 放到另一个 Stream”，还涉及路由、分桶、内存布局和 Expert 计算粒度的协同设计。</p>
+<h3 id="24-通信问题的定位方法">2.4 通信问题的定位方法</h3>
+<p>通信性能问题通常不能只通过端到端吞吐量判断。需要将问题拆分为拓扑、链路、通信原语和应用依赖几个层次。</p>
+<h4 id="241-第一步确认物理拓扑">2.4.1 第一步：确认物理拓扑</h4>
+<div class="sourceCode" id="cb11"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb11-1"><a href="#cb11-1" aria-hidden="true" tabindex="-1"></a><span class="ex">nvidia-smi</span> topo <span class="at">-m</span></span></code></pre></div>
+<p>重点关注：</p>
+<ul>
+<li>GPU 之间是否存在 NVLink；</li>
+<li>是否经过同一个 PCIe Root Complex；</li>
+<li>GPU 与 NIC 是否处于同一 NUMA 节点；</li>
+<li>是否存在跨 CPU Socket 的额外路径；</li>
+<li>多节点 GPU 是否能够使用 GPUDirect RDMA。</li>
+</ul>
+<h4 id="242-第二步确认-nccl-识别结果">2.4.2 第二步：确认 NCCL 识别结果</h4>
+<p>临时开启 NCCL 日志：</p>
+<div class="sourceCode" id="cb12"><pre class="sourceCode bash"><code class="sourceCode bash"><span id="cb12-1"><a href="#cb12-1" aria-hidden="true" tabindex="-1"></a><span class="va">NCCL_DEBUG</span><span class="op">=</span>INFONCCL_DEBUG_SUBSYS=INIT,GRAPH,NET</span></code></pre></div>
+<p>重点查看：</p>
+<ul>
+<li>NCCL 识别到了哪些 GPU；</li>
+<li>使用了哪些网卡；</li>
+<li>是否启用了 P2P；</li>
+<li>是否使用 NVLink、InfiniBand 或 RoCE；</li>
+<li>是否出现回退到 Socket 或 Host Memory 的迹象。</li>
+</ul>
+<h4 id="243-第三步使用-nccl-tests-区分通信库问题和应用问题">2.4.3 第三步：使用 NCCL Tests 区分通信库问题和应用问题</h4>
+<p>如果 <code>all_reduce_perf</code> 的性能已经较差，问题大概率位于硬件拓扑、驱动、网络或 NCCL 配置层面。</p>
+<p>如果 NCCL Tests 性能正常，但 vLLM 端到端性能仍然较差，则需要进一步检查：</p>
+<ul>
+<li>通信消息大小是否过小；</li>
+<li>每步通信调用次数是否过多；</li>
+<li>是否存在隐式同步；</li>
+<li>通信和计算是否真正重叠；</li>
+<li>是否发生了不必要的张量转换或内存拷贝；</li>
+<li>是否存在负载不均衡；</li>
+<li>CUDA Graph 或算子融合是否受到通信依赖影响。</li>
+</ul>
+<h4 id="244-第四步根据消息规模区分优化方向">2.4.4 第四步：根据消息规模区分优化方向</h4>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">现象</th>
+<th style="text-align: left;">可能原因</th>
+<th style="text-align: left;">优先检查方向</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">小消息延迟高</td>
+<td style="text-align: left;">启动和同步开销占比高</td>
+<td style="text-align: left;">Stream、调用次数、CustomAllreduce</td>
+</tr>
+<tr>
+<td style="text-align: left;">大消息带宽低</td>
+<td style="text-align: left;">链路未充分利用</td>
+<td style="text-align: left;">拓扑、算法、协议、消息切分</td>
+</tr>
+<tr>
+<td style="text-align: left;">机内通信慢</td>
+<td style="text-align: left;">NVLink/P2P 未生效</td>
+<td style="text-align: left;"><code>nvidia-smi topo -m</code>、NCCL 日志</td>
+</tr>
+<tr>
+<td style="text-align: left;">跨节点通信慢</td>
+<td style="text-align: left;">网络或 GDR 配置问题</td>
+<td style="text-align: left;">NIC、HCA、GPUDirect RDMA</td>
+</tr>
+<tr>
+<td style="text-align: left;">NCCL 测试正常但端到端慢</td>
+<td style="text-align: left;">应用依赖未重叠</td>
+<td style="text-align: left;">CUDA Event、Stream 和算子依赖</td>
+</tr>
+<tr>
+<td style="text-align: left;">MoE 通信抖动明显</td>
+<td style="text-align: left;">Token 分布不均</td>
+<td style="text-align: left;">路由、Expert 负载和 Token 分桶</td>
+</tr>
+<tr>
+<td style="text-align: left;">Decode 吞吐低</td>
+<td style="text-align: left;">小消息和同步占主导</td>
+<td style="text-align: left;">通信融合、低延迟实现和批处理</td>
+</tr>
+</tbody>
+</table>
+<h3 id="25-小结通信优化的优先级">2.5 小结：通信优化的优先级</h3>
+<p>通信优化可以按照以下顺序推进：</p>
+<ol type="1">
+<li><strong>先确认并行策略是否匹配硬件拓扑</strong>；</li>
+<li><strong>确认 GPU P2P、NVLink、InfiniBand 和 GPUDirect RDMA 是否正常</strong>；</li>
+<li><strong>使用 NCCL Tests 测量通信原语的实际性能</strong>；</li>
+<li><strong>区分小消息延迟问题和大消息带宽问题</strong>；</li>
+<li><strong>减少不必要的同步、拷贝和通信调用</strong>；</li>
+<li><strong>让通信与计算尽可能重叠</strong>；</li>
+<li><strong>在满足条件时使用 <code>CustomAllreduce</code> 等专用实现</strong>；</li>
+<li><strong>最后再针对具体工作负载调整 NCCL 算法和协议参数</strong>。</li>
+</ol>
+<p>最终目标并不是让某一次 All-Reduce 的基准测试数字最大，而是降低通信在完整推理路径中的可见时间：</p>
+<pre><code>端到端时间= 计算时间+ 无法隐藏的通信时间+ 同步等待+ 数据重排与拷贝开销</code></pre>
+<p>理想情况下，通信应该尽可能被计算覆盖；对于无法覆盖的部分，则需要通过更合适的拓扑、更低延迟的通信实现、更少的同步点以及更合理的并行策略，将其压缩到最小。</p>
+
+</article>
+<div class="pnav">
+ <span><a href="07.1-Multi-GPU：一张卡不够时如何扩展.html">← 上一篇 07.1</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><a href="08-模型适配：如何跟上变化极快的模型世界.html">下一篇 08 →</a></span>
+</div>
+</body>
+</html>

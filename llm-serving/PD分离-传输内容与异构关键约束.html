@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PD 分离：P→D 传输内容与异构关键约束</title>
+<style>
+:root{
+  --bg:#eef2f7; --surface:#fff; --line:#e2e8f0; --text:#0f172a; --muted:#5b6b7f;
+  --p:#d97706; --d:#059669; --tr:#0891b2; --c:#e11d48; --slate:#475569;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);
+  font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+  font-size:15px;line-height:1.65}
+code{font-family:ui-monospace,Consolas,monospace}
+main{max-width:1240px;margin:0 auto;padding:0 20px 70px}
+h2{font-size:23px;margin:50px 0 6px;display:flex;align-items:center;gap:10px}
+h2 .idx{font-size:12px;font-weight:700;color:#fff;background:var(--slate);border-radius:8px;padding:3px 9px}
+.sub{color:var(--muted);margin:0 0 16px;font-size:14px}
+a{color:var(--tr)}
+.topbar{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.88);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.topbar-in{max-width:1240px;margin:0 auto;padding:10px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.topbar b{font-size:15px}
+.topbar .btns{margin-left:auto;display:flex;gap:6px}
+.topbar button{font-size:12.5px;border:1px solid var(--line);background:#fff;color:var(--slate);border-radius:8px;padding:5px 10px;cursor:pointer}
+.topbar button:hover{background:#f1f5f9}
+.hero{margin-top:30px;background:linear-gradient(135deg,#0f172a,#134e4a 90%);border-radius:18px;color:#e6edf6;padding:30px 34px 26px}
+.hero h1{margin:0 0 8px;font-size:27px}
+.hero p{margin:6px 0;color:#b8c7d9;font-size:14.5px;max-width:1050px}
+.hero b.k{color:#7dd3fc}
+.hero .formula{margin-top:16px;background:rgba(255,255,255,.08);border:1px solid rgba(148,180,210,.25);border-radius:12px;padding:12px 18px;font-size:13.5px;color:#cfe0ef}
+.hero .formula code{background:rgba(255,255,255,.1);padding:1px 6px;border-radius:5px;color:#e9f2fa;font-size:12.5px}
+/* figure */
+.figwrap{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:16px 12px 8px;box-shadow:0 1px 3px rgba(15,23,42,.05)}
+.figwrap svg{width:100%;height:auto;display:block}
+.figcap{font-size:13px;color:var(--muted);margin:12px 6px 2px;border-top:1px dashed var(--line);padding-top:10px}
+.legend{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:8px;margin:16px 2px 0}
+.legend .li{display:flex;gap:9px;align-items:flex-start;background:#fff;border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:12.5px}
+.legend .n{flex:0 0 auto;width:22px;height:22px;border-radius:50%;background:var(--c);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;margin-top:1px}
+.legend .li b{color:var(--text)}
+.legend .li span{color:var(--muted)}
+/* svg shared */
+svg text{font-family:inherit}
+.panel{rx:14}
+.ptitle{font-size:15px;font-weight:800}
+.psub{font-size:11px}
+.nbox{fill:#fff;stroke-width:1.3}
+.bt{font-size:12.5px;font-weight:700;fill:#0f172a}
+.bs{font-size:10.5px;fill:#64748b}
+.bs2{font-size:10.5px;fill:#92400e}
+.arr{stroke:#94a3b8;stroke-width:1.8;fill:none}
+.cbadge{fill:var(--c)}
+.cnum{font-size:11px;font-weight:800;fill:#fff}
+.red{fill:var(--c);font-weight:700}
+/* table */
+.tbl{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:12px;overflow:hidden;font-size:13px}
+.tbl th{background:#1e293b;color:#e2e8f0;text-align:left;padding:9px 12px;font-weight:600;font-size:12.5px}
+.tbl td{padding:8px 12px;border-top:1px solid var(--line);vertical-align:top;color:#334155}
+.tbl tr:nth-child(even) td{background:#f8fafc}
+.tbl td:first-child{white-space:nowrap;font-weight:600;color:var(--text)}
+.cn{display:inline-flex;width:19px;height:19px;border-radius:50%;background:var(--c);color:#fff;font-size:11px;font-weight:800;align-items:center;justify-content:center;margin-right:4px;vertical-align:-4px}
+/* cards */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;margin-bottom:14px;overflow:hidden;scroll-margin-top:80px}
+.card summary{list-style:none;display:flex;align-items:center;gap:14px;padding:14px 20px;cursor:pointer;background:color-mix(in srgb,var(--c) 4%,#fff)}
+.card summary::-webkit-details-marker{display:none}
+.card summary:hover{background:color-mix(in srgb,var(--c) 8%,#fff)}
+.card .num{flex:0 0 auto;width:32px;height:32px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:800;color:#fff;background:var(--c)}
+.card .ct{flex:1;min-width:0}
+.card .ct .t{display:block;font-size:15px;font-weight:700}
+.card .ct .st{display:block;font-size:12.5px;color:var(--muted);margin-top:1px}
+.card .ch{font-size:11px;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 35%,#fff);background:color-mix(in srgb,var(--c) 7%,#fff);border-radius:6px;padding:2px 7px;white-space:nowrap;font-weight:600}
+.card .chev{flex:0 0 auto;width:18px;height:18px;transition:transform .2s;color:var(--muted)}
+.card[open] .chev{transform:rotate(90deg)}
+.card .body{padding:2px 22px 18px;border-top:1px solid color-mix(in srgb,var(--c) 15%,#fff)}
+.lead{font-size:14px;color:#334155;background:#fef2f4;border-left:3px solid var(--c);padding:9px 14px;border-radius:0 8px 8px 0;margin:14px 0 4px}
+.lead b{color:var(--c)}
+.cols{display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:16px;margin-top:14px}
+.cols section h4{font-size:12.5px;margin:0 0 8px;color:var(--c);letter-spacing:.5px;border-bottom:1px solid var(--line);padding-bottom:5px}
+.cols ul{margin:0;padding-left:18px}
+.cols li{font-size:13px;margin-bottom:7px;color:#334155}
+.cols li b{color:var(--text)}
+.io b{display:block;font-size:11.5px;color:var(--muted);margin-bottom:3px}
+.io{margin-bottom:10px}
+.io code{display:block;font-size:12px;background:#0f172a;color:#fecdd3;border-radius:8px;padding:7px 10px;line-height:1.6;word-break:break-all}
+.dep{display:flex;align-items:flex-start;gap:6px;margin-bottom:9px;flex-wrap:wrap}
+.dep>b{font-size:11.5px;color:var(--muted);flex:0 0 52px;padding-top:4px}
+.chip{font-size:12px;background:#f1f5f9;border:1px solid var(--line);border-radius:6px;padding:2.5px 8px;color:var(--slate);display:inline-block;margin:0 3px 3px 0}
+.chip.src{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
+.tags{margin-top:12px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+.tags .lb{font-size:11.5px;color:var(--muted)}
+.tag{font-size:11.5px;background:color-mix(in srgb,var(--c) 7%,#fff);color:var(--c);border-radius:999px;padding:2px 10px;border:1px solid color-mix(in srgb,var(--c) 22%,#fff)}
+footer{margin-top:50px;color:var(--muted);font-size:12.5px;text-align:center;border-top:1px solid var(--line);padding-top:18px}
+@media (max-width:960px){.cols{grid-template-columns:1fr}}
+</style>
+</head>
+<body><div style="max-width:1020px;margin:16px auto -10px;padding:0 22px"><div style="background:#fffbeb;border:1px solid #fde68a;border-left:4px solid #f59e0b;border-radius:10px;padding:10px 18px;font-size:13.5px;color:#78350f;line-height:1.8">📌 本系列笔记为<b>原文转载</b>整理，仅作<b>个人学习使用</b>，不用于任何商业用途。</div></div>
+
+<div class="topbar"><div class="topbar-in">
+  <b>🔀 PD 分离 · 异构传输全景</b>
+  <div class="btns">
+    <button onclick="toggleAll(true)">全部展开</button>
+    <button onclick="toggleAll(false)">全部收起</button>
+    <button onclick="window.print()">打印 / PDF</button>
+  </div>
+</div></div>
+
+<main>
+
+<section class="hero">
+  <h1>PD 分离：P→D 传输什么 · 异构下的关键约束</h1>
+  <p>PD 分离不是"Prefill 服务返回结果、Decode 服务重新开始执行"，而是
+     <b class="k">「Prefill 服务计算出中间状态，Decode 服务接管这个中间状态」</b>——中间状态就是 KV Cache。
+     左图 P 节点产生状态，中间通道完成 KV Transfer，右图 D 节点接管状态。</p>
+  <p>同构部署默认两侧一致的东西，<b class="k">异构后全部要显式对齐</b>：图中红色编号 ①–⑦ 标出关键约束的发生位置——
+     同一编号出现在两侧，意味着该约束需要 P、D 两边同时满足。</p>
+  <div class="formula">
+    📐 量级（贯穿全文例子，Llama-3-70B · 80 层 · GQA-8）：
+    <code>KV bytes/token = 层数 × 2(K,V) × KV_heads × head_dim × 字节数 = 320 KB</code>
+    → 2050 token prompt ≈ <code>641 MiB</code>；
+    50 GB/s 下带宽下限 ≈ <code>12.8 ms</code>，但真实交接 = KV 生成 + 元数据准备 + 网络传输 + 目标端写入 + KV 状态确认 + Decode 启动。
+  </div>
+</section>
+
+<!-- ================= 主图 ================= -->
+<section>
+  <h2><span class="idx">图 1</span>P 节点 → KV Transfer → D 节点：传输内容与约束标注</h2>
+  <p class="sub">左侧 P 节点（Prefill Pool）· 中间传输通道的 7 项内容 · 右侧 D 节点（Decode Pool）。红色圆号 ①–⑦ 为异构关键约束，图例与详解见下方。</p>
+  <div class="figwrap">
+  <svg viewBox="0 0 1240 828" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+      <marker id="ma" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#94a3b8"/>
+      </marker>
+    </defs>
+
+    <!-- ============ P 节点 ============ -->
+    <rect x="24" y="30" width="368" height="616" rx="14" fill="#fffbeb" stroke="#fbbf24" stroke-width="1.6"/>
+    <text class="ptitle" x="44" y="58" fill="#92400e">P 节点 · Prefill Pool</text>
+    <text class="psub" x="44" y="77" fill="#b45309">计算密集 · 高算力配置 · 目标：优化 TTFT</text>
+
+    <g>
+      <rect class="nbox" x="44" y="94" width="328" height="50" rx="9" stroke="#fbbf24"/>
+      <text class="bt" x="58" y="115">Router 决策</text>
+      <text class="bs" x="58" y="133">Prompt 长度 · 队列 · Prefix 命中 · 网络位置</text>
+
+      <rect class="nbox" x="44" y="156" width="328" height="50" rx="9" stroke="#fbbf24"/>
+      <text class="bt" x="58" y="177">Prompt Forward（批量计算）</text>
+      <text class="bs" x="58" y="195">并行处理 N 个 token · 生成各层 K/V</text>
+
+      <rect class="nbox" x="44" y="218" width="328" height="64" rx="9" stroke="#fbbf24"/>
+      <text class="bt" x="58" y="239">KV Cache 按 Block 写入</text>
+      <text class="bs" x="58" y="257">block_size · GQA / MLA 布局 · head 排布</text>
+      <text class="bs" x="58" y="273">FP16 / FP8 存储粒度与 scale 布局</text>
+
+      <rect class="nbox" x="44" y="294" width="328" height="52" rx="9" stroke="#fbbf24"/>
+      <text class="bt" x="58" y="315">Prefix Cache（链式哈希）</text>
+      <text class="bs" x="58" y="333">跨节点复用要求：哈希可复现 · extra_keys 一致</text>
+
+      <rect class="nbox" x="44" y="358" width="328" height="86" rx="9" stroke="#fbbf24"/>
+      <text class="bt" x="58" y="379">传输元数据准备</text>
+      <text class="bs" x="58" y="397">block_table · token 数量 · layer 信息</text>
+      <text class="bs" x="58" y="413">数据类型和布局 · 请求标识 req_id</text>
+      <text class="bs" x="58" y="429">传输状态与元数据</text>
+
+      <rect class="nbox" x="44" y="456" width="328" height="52" rx="9" stroke="#fcd34d" stroke-dasharray="5 3"/>
+      <text class="bt" x="58" y="477">Serving 语义层决策（可少传）</text>
+      <text class="bs" x="58" y="495">get_num_new_matched_tokens()：远端命中即复用</text>
+
+      <rect x="44" y="532" width="328" height="92" rx="9" fill="#fffdf5" stroke="#fde68a"/>
+      <text class="bs" x="58" y="554" fill="#92400e" font-weight="700">KV 大小估算</text>
+      <text class="bs" x="58" y="573">KV bytes/token =</text>
+      <text class="bs" x="58" y="589">层数 × 2(K,V) × KV_heads × head_dim × 字节数</text>
+      <text class="bs2" x="58" y="609">例：320 KB/token × 2050 ≈ 641 MiB</text>
+    </g>
+    <!-- P 侧约束徽章 -->
+    <g><circle class="cbadge" cx="360" cy="218" r="11"/><text class="cnum" x="360" y="222" text-anchor="middle">1</text></g>
+    <g><circle class="cbadge" cx="360" cy="294" r="11"/><text class="cnum" x="360" y="298" text-anchor="middle">5</text></g>
+    <g><circle class="cbadge" cx="360" cy="358" r="11"/><text class="cnum" x="360" y="362" text-anchor="middle">2</text></g>
+
+    <!-- ============ 中间：KV Transfer ============ -->
+    <text class="ptitle" x="620" y="52" text-anchor="middle" fill="#0e7490">KV Transfer（跨节点）</text>
+    <text class="psub" x="620" y="70" text-anchor="middle" fill="#0e7490">传的不是指令，是中间状态</text>
+
+    <rect x="424" y="84" width="392" height="352" rx="12" fill="#ecfeff" stroke="#22d3ee" stroke-width="1.6"/>
+    <text class="bt" x="440" y="106" fill="#155e75">本次传输内容（7 项）</text>
+    <g>
+      <rect x="440" y="116" width="360" height="32" rx="7" fill="#fff" stroke="#a5f3fc"/>
+      <text class="bt" x="452" y="137" font-size="11.5">KV Cache Tensor —— 本体（641 MiB）</text>
+      <rect x="440" y="153" width="360" height="32" rx="7" fill="#fff" stroke="#a5f3fc"/>
+      <text class="bs" x="452" y="174" fill="#0f172a" font-weight="600">block table（虚拟块 → 物理块映射）</text>
+      <rect x="440" y="190" width="360" height="32" rx="7" fill="#fff" stroke="#a5f3fc"/>
+      <text class="bs" x="452" y="211" fill="#0f172a" font-weight="600">token 数量（已计算位置）</text>
+      <rect x="440" y="227" width="360" height="32" rx="7" fill="#fff" stroke="#a5f3fc"/>
+      <text class="bs" x="452" y="248" fill="#0f172a" font-weight="600">layer 信息</text>
+      <rect x="440" y="264" width="360" height="32" rx="7" fill="#fff" stroke="#a5f3fc"/>
+      <text class="bs" x="452" y="285" fill="#0f172a" font-weight="600">数据类型和布局（dtype · 排布）</text>
+      <rect x="440" y="301" width="360" height="32" rx="7" fill="#fff" stroke="#a5f3fc"/>
+      <text class="bs" x="452" y="322" fill="#0f172a" font-weight="600">请求标识 req_id</text>
+      <rect x="440" y="338" width="360" height="32" rx="7" fill="#fff" stroke="#a5f3fc"/>
+      <text class="bs" x="452" y="359" fill="#0f172a" font-weight="600">传输状态与元数据</text>
+    </g>
+    <text class="bs" x="440" y="392" fill="#0e7490">▸ 命中前缀时部分内容可免传（Prefix Cache / 索引层）</text>
+    <text class="bs" x="440" y="410" fill="#0e7490">▸ NIXL 管「怎么搬」· LMCache 管「放哪/复用」· Mooncake 系统化</text>
+    <text class="bs" x="440" y="428" fill="#0e7490">▸ 红色编号 = 异构关键约束（图例见下）</text>
+
+    <!-- 传输路径 -->
+    <rect x="424" y="452" width="392" height="104" rx="12" fill="#fff" stroke="#67e8f9"/>
+    <text class="bt" x="440" y="474" fill="#155e75">传输路径</text>
+    <g><circle class="cbadge" cx="800" cy="452" r="11"/><text class="cnum" x="800" y="456" text-anchor="middle">3</text></g>
+    <text class="bs" x="440" y="494" font-family="ui-monospace,Consolas,monospace">P GPU → PCIe → NIC → IB/RoCE → D NIC → PCIe → D GPU</text>
+    <text class="bs" x="440" y="513">GPUDirect RDMA 直达；一侧不支持则经 Host 中转 +2 次拷贝</text>
+    <text class="bs2" x="440" y="532">带宽 50 GB/s → 下限 12.8 ms；掉一半 → 25.6 ms，吃掉 TTFT 收益</text>
+
+    <!-- 按层流水 -->
+    <rect x="424" y="572" width="392" height="74" rx="12" fill="#fff" stroke="#67e8f9"/>
+    <text class="bt" x="440" y="594" fill="#155e75">按层流水（传输与计算重叠）</text>
+    <g><circle class="cbadge" cx="800" cy="572" r="11"/><text class="cnum" x="800" y="576" text-anchor="middle">4</text></g>
+    <text class="bs" x="440" y="614">Layer 0 KV 到达 → 开算 Layer 0 → Layer 1 …</text>
+    <text class="bs2" x="440" y="632">任一侧不支持分层等待 → 整请求到齐再 Decode，完全串行</text>
+
+    <!-- ============ D 节点 ============ -->
+    <rect x="848" y="30" width="368" height="616" rx="14" fill="#ecfdf5" stroke="#34d399" stroke-width="1.6"/>
+    <text class="ptitle" x="868" y="58" fill="#065f46">D 节点 · Decode Pool</text>
+    <text class="psub" x="868" y="77" fill="#047857">访存敏感 · 大 KV 容量 · 目标：稳定 TPOT</text>
+
+    <g>
+      <rect class="nbox" x="868" y="94" width="328" height="64" rx="9" stroke="#34d399"/>
+      <text class="bt" x="882" y="115">接收端内存分配 + 布局转换</text>
+      <text class="bs" x="882" y="133">异构内存池 / 分配器不同 · Tensor 可能需重排</text>
+      <text class="bs" x="882" y="149">FP16↔FP8 / scale 需在线互认</text>
+
+      <rect class="nbox" x="868" y="170" width="328" height="64" rx="9" stroke="#34d399"/>
+      <text class="bt" x="882" y="191">KV 写入本地 Cache · 重建 block table</text>
+      <text class="bs" x="882" y="209">block_size / head 排布 / MLA latent</text>
+      <text class="bs" x="882" y="225">必须与本地 Kernel 语义一致</text>
+
+      <rect class="nbox" x="868" y="246" width="328" height="52" rx="9" stroke="#34d399"/>
+      <text class="bt" x="882" y="267">KV 状态确认（同步语义）</text>
+      <text class="bs" x="882" y="285">确认写完才开算 · 防脏读 / 缺数据</text>
+
+      <rect class="nbox" x="868" y="310" width="328" height="64" rx="9" stroke="#34d399"/>
+      <text class="bt" x="882" y="331">接管请求 → 持续 Decode</text>
+      <text class="bs" x="882" y="349">不再重复 Prefill · 读全部历史 KV</text>
+      <text class="bs" x="882" y="365">每步追加 1 个 slot · 优化 TPOT</text>
+
+      <rect class="nbox" x="868" y="386" width="328" height="52" rx="9" stroke="#34d399"/>
+      <text class="bt" x="882" y="407">Prefix Cache 复用 · KV Affinity</text>
+      <text class="bs" x="882" y="425">同前缀请求黏同一节点 · 防单点过热</text>
+
+      <rect class="nbox" x="868" y="450" width="328" height="52" rx="9" stroke="#34d399"/>
+      <text class="bt" x="882" y="471">复用有效性校验</text>
+      <text class="bs" x="882" y="489">远端 KV 有效性 · 模型版本 · dtype / 布局复用边界</text>
+
+      <rect x="868" y="532" width="328" height="92" rx="9" fill="#f6fffb" stroke="#a7f3d0"/>
+      <text class="bs" x="882" y="554" fill="#065f46" font-weight="700">真实交接延迟</text>
+      <text class="bs" x="882" y="573">= KV 生成 + 元数据准备 + 网络传输</text>
+      <text class="bs" x="882" y="589">+ 目标端写入 + KV 状态确认 + Decode 启动</text>
+      <text class="bs2" x="882" y="609">12.8 ms 只是带宽下限，不是真实交接时间</text>
+    </g>
+    <!-- D 侧约束徽章 -->
+    <g><circle class="cbadge" cx="1184" cy="94" r="11"/><text class="cnum" x="1184" y="98" text-anchor="middle">2</text></g>
+    <g><circle class="cbadge" cx="1156" cy="94" r="11"/><text class="cnum" x="1156" y="98" text-anchor="middle">6</text></g>
+    <g><circle class="cbadge" cx="1184" cy="170" r="11"/><text class="cnum" x="1184" y="174" text-anchor="middle">1</text></g>
+    <g><circle class="cbadge" cx="1184" cy="246" r="11"/><text class="cnum" x="1184" y="250" text-anchor="middle">6</text></g>
+    <g><circle class="cbadge" cx="1184" cy="450" r="11"/><text class="cnum" x="1184" y="454" text-anchor="middle">5</text></g>
+
+    <!-- 面板间箭头 -->
+    <line class="arr" x1="392" y1="250" x2="420" y2="250" marker-end="url(#ma)"/>
+    <line class="arr" x1="816" y1="250" x2="844" y2="250" marker-end="url(#ma)"/>
+    <text class="bs" x="406" y="240" text-anchor="middle" font-size="9.5" fill="#64748b">发送</text>
+    <text class="bs" x="830" y="240" text-anchor="middle" font-size="9.5" fill="#64748b">接收</text>
+
+    <!-- ============ 全局约束 ⑦ ============ -->
+    <rect x="24" y="664" width="1192" height="66" rx="12" fill="#fff1f2" stroke="#fda4af"/>
+    <g><circle class="cbadge" cx="54" cy="697" r="11"/><text class="cnum" x="54" y="701" text-anchor="middle">7</text></g>
+    <text class="bs" x="78" y="688" fill="#881337" font-weight="700">全局约束 · 调度配比：异构两侧吞吐单独标定（P 池看输入 token 速率 / TTFT；D 池看活跃请求 / TPOT / KV 使用率），KV Affinity 路由需计入两侧网络位置差异</text>
+    <text class="bs" x="78" y="712" fill="#881337">故障恢复：KV 是可重建状态 —— 重算（简单，长 Prompt 贵）/ 远端 KV 恢复（免重 Prefill）/ 复制（快但费带宽）；异构下重算常比跨硬件 KV 持久化更省事</text>
+
+    <!-- 总结 -->
+    <rect x="24" y="746" width="1192" height="62" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-dasharray="6 4"/>
+    <text class="bs" x="44" y="770" fill="#0f172a" font-weight="700">一句话：同构 PD 的难点是「传得快」；异构 PD 的难点是「对方认得」（布局 / dtype / 哈希 / 流水的语义兼容）+「路径不劣化」。</text>
+    <text class="bs" x="44" y="792" fill="#334155">解法方向（Platform 思想）：把布局、dtype、传输能力变成<tspan font-weight="700" fill="#9f1239">可查询、可校验的平台能力</tspan>，启动期做兼容性检查并明确报错，而不是运行到深层才崩溃。</text>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <div class="li"><span class="n">1</span><div><b>KV 布局与分页参数兼容</b><br><span>block_size / head 排布 / MLA latent 两侧互认（P 生成侧 + D 写入侧）</span></div></div>
+    <div class="li"><span class="n">2</span><div><b>dtype 与量化格式互认</b><br><span>FP16↔FP8、scale 布局平台相关，需在线转换（P 元数据 + D 内存）</span></div></div>
+    <div class="li"><span class="n">3</span><div><b>传输路径与带宽不劣化</b><br><span>GPUDirect RDMA 是否可用、是否经 Host 中转（传输通道）</span></div></div>
+    <div class="li"><span class="n">4</span><div><b>按层流水能否成立</b><br><span>两侧都要支持分层等待/保存，否则退化为串行（传输通道）</span></div></div>
+    <div class="li"><span class="n">5</span><div><b>Prefix Cache 跨节点复用前提</b><br><span>哈希可复现、extra_keys、模型版本/dtype 边界（P 哈希 + D 校验）</span></div></div>
+    <div class="li"><span class="n">6</span><div><b>接收端内存分配与同步语义</b><br><span>内存池差异、异步错误暴露时机，确认写完才开算（D 侧）</span></div></div>
+    <div class="li"><span class="n">7</span><div><b>调度配比与故障恢复</b><br><span>异构吞吐单独标定、KV 可重建 → 重算 vs 恢复（全局）</span></div></div>
+  </div>
+
+  <div class="figcap">
+    阅读方式：灰色/彩色框为数据流（P 生成 KV 与元数据 → 通道传输 7 项内容 → D 接收并接管）；
+    红色圆号为约束发生位置——<b>①②⑤ 同时出现在两侧，表示需要 P、D 两边同时满足才能成立</b>；
+    ③④ 位于传输通道，⑥ 位于 D 侧，⑦ 是全局性约束。
+  </div>
+</section>
+
+<!-- ================= 传输内容明细 ================= -->
+<section>
+  <h2><span class="idx">表 1</span>传输内容明细：7 项各自的说明与异构注意点</h2>
+  <p class="sub">七个传输项各自的说明与异构注意点（对应约束编号）。</p>
+  <table class="tbl">
+    <tr><th>传输项</th><th>说明</th><th>异构注意点</th></tr>
+    <tr><td>KV Cache Tensor</td><td>中间状态本体。2050 token × 320 KB/token ≈ 641 MiB，是传输的大头</td><td>约束 ①② 的直接载体：布局、dtype 都作用在它上面</td></tr>
+    <tr><td>block table</td><td>虚拟块 → 物理块映射，Attention Kernel 据此索引 KV，不认识"请求"只认表</td><td>block_size 不一致则整张表无法解释（约束 ①）</td></tr>
+    <tr><td>token 数量</td><td>已计算完成的 token 位置，对应 num_computed_tokens 语义</td><td>两侧对"算到哪"的计数语义要一致</td></tr>
+    <tr><td>layer 信息</td><td>KV 对应的模型层，供 D 侧按层对号入座</td><td>逐层流水（约束 ④）依赖逐层元信息</td></tr>
+    <tr><td>数据类型和布局</td><td>dtype 与 tensor 排布描述</td><td>FP16/FP8、per-token/per-head scale 布局平台相关（约束 ②）</td></tr>
+    <tr><td>请求标识 req_id</td><td>把传输中的 KV 与路由/请求生命周期关联</td><td>—</td></tr>
+    <tr><td>传输状态与元数据</td><td>传输进度、完成标记等</td><td>D 侧状态确认（约束 ⑥）据此判断可否开算</td></tr>
+  </table>
+</section>
+
+<!-- ================= 约束卡片 ================= -->
+<section>
+  <h2><span class="idx">表 2</span>七大约束详解</h2>
+  <p class="sub">每张卡片：是什么 → 异构下为何成为关键 → 作用的传输项 → 缓解方向。点击展开。</p>
+
+  <details class="card" style="--c:#e11d48" open>
+    <summary><span class="num">1</span>
+      <span class="ct"><span class="t">KV 布局与分页参数兼容</span><span class="st">最核心：传过去 block table 必须能被对面的 Kernel 解释</span></span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7"/></svg>
+    </summary>
+    <div class="body">
+      <p class="lead"><b>是什么：</b>P 侧按自己的分页方式（block_size、head 排布、层组织）写 KV，D 侧 Attention Kernel 只认 block table；
+        两侧参数不一致，641 MiB 传过去了也读不对。</p>
+      <div class="cols">
+        <section><h4>⚠️ 异构下为何关键</h4><ul>
+          <li>跨节点传输时，「<b>不同并行配置下布局是否兼容</b>」是 KV 索引缓存层必须回答的问题。</li>
+          <li>block_size 必须一致——否则虚拟块→物理块的整张映射失效；KV head 排布、head_dim、层的组织方式也要互认。</li>
+          <li><b>MLA 模型尤其特殊</b>：存的是 latent 而非完整 K/V；对压缩缓存，copy_blocks / cache swap / prefix caching <b>不能假设缓存具有传统 K/V 的形状和语义</b>。</li>
+          <li>两侧平台各自的 Attention Backend 对缓存布局有各自的假设。</li>
+        </ul></section>
+        <section><h4>📌 作用的传输项</h4>
+          <div class="io"><b>直接影响</b><code>KV Cache Tensor + block table</code></div>
+          <div class="io"><b>发生位置</b><code>P 生成侧（写入布局）<br>D 接收侧（Kernel 解释）</code></div>
+        </section>
+        <section><h4>🧭 缓解方向</h4>
+          <div class="dep"><b>协议化</b><span class="chip">缓存分配按「后端声明的布局」动态确定</span></div>
+          <div class="dep"><b>校验</b><span class="chip">启动期核对 block_size / head / latent 语义</span></div>
+        </section>
+      </div>
+      <div class="tags"><span class="lb">关键概念</span><span class="tag">block_size 对齐</span><span class="tag">Block Table 语义</span><span class="tag">MLA latent Cache</span><span class="tag">布局协议</span></div>
+    </div>
+  </details>
+
+  <details class="card" style="--c:#e11d48">
+    <summary><span class="num">2</span>
+      <span class="ct"><span class="t">dtype 与量化格式互认</span><span class="st">FP16↔FP8 在线转换，scale 布局平台相关</span></span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7"/></svg>
+    </summary>
+    <div class="body">
+      <p class="lead"><b>是什么：</b>传输元数据里就有「数据类型和布局」。若 P 侧 FP16 KV、D 侧 FP8（或两侧量化粒度不同），必须在线反量化/重量化。</p>
+      <div class="cols">
+        <section><h4>⚠️ 异构下为何关键</h4><ul>
+          <li>「<b>同一种量化名称，在不同硬件平台上可能对应不同实现</b>」——scale 布局（per-token / per-head）、反量化位置都是平台相关的。</li>
+          <li>转换本身有开销：反量化→重量化多一趟读写，直接加在交接延迟上。</li>
+          <li>精度风险：需注意 <b>softmax 对 Key 误差特别敏感</b>（指数放大误差），两侧精度不一致会叠加误差。</li>
+        </ul></section>
+        <section><h4>📌 作用的传输项</h4>
+          <div class="io"><b>直接影响</b><code>KV Cache Tensor +<br>数据类型和布局（元数据）</code></div>
+          <div class="io"><b>发生位置</b><code>P 元数据准备（声明）<br>D 内存分配（转换落地）</code></div>
+        </section>
+        <section><h4>🧭 缓解方向</h4>
+          <div class="dep"><b>对齐</b><span class="chip">两侧约定同一 KV dtype 与量化粒度</span></div>
+          <div class="dep"><b>校验</b><span class="chip">Platform 能力查询：支持的 KV 格式提前暴露</span></div>
+        </section>
+      </div>
+      <div class="tags"><span class="lb">关键概念</span><span class="tag">FP8 E4M3</span><span class="tag">Quantize-on-write</span><span class="tag">scale 布局</span><span class="tag">启动期能力查询</span></div>
+    </div>
+  </details>
+
+  <details class="card" style="--c:#e11d48">
+    <summary><span class="num">3</span>
+      <span class="ct"><span class="t">传输路径与带宽不劣化</span><span class="st">GPUDirect RDMA 是否可用，决定 12.8 ms 还是 25.6 ms+</span></span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7"/></svg>
+    </summary>
+    <div class="body">
+      <p class="lead"><b>是什么：</b>跨节点理想路径是 GPU→NIC→远端 GPU 的 GPUDirect RDMA；异构两侧若有一方不支持，就要经 Host Memory 中转、多两次拷贝。</p>
+      <div class="cols">
+        <section><h4>⚠️ 异构下为何关键</h4><ul>
+          <li>跨节点路径 GPU HBM→PCIe→NIC→IB/RoCE→…；<b>GPUDirect RDMA 未启用时数据经 Host Memory 中转，额外拷贝与延迟</b>。</li>
+          <li>量级敏感：641 MiB 下有效带宽 50→25 GB/s，下限 12.8→25.6 ms——<b>直接吃掉 PD 分离省下的 TTFT</b>。</li>
+          <li>真实链路还包括更多因素：KV 切分方式、元数据交换、PCIe/NVLink 路径、RDMA 协议开销、DMA 调度、多请求并发带宽竞争。</li>
+        </ul></section>
+        <section><h4>📌 作用的传输项</h4>
+          <div class="io"><b>直接影响</b><code>KV Cache Tensor（641 MiB 大头）</code></div>
+          <div class="io"><b>发生位置</b><code>传输通道本身</code></div>
+        </section>
+        <section><h4>🧭 缓解方向</h4>
+          <div class="dep"><b>路径</b><span class="chip">GPUDirect RDMA / NVLink / 零拷贝 / 异步多流</span></div>
+          <div class="dep"><b>减量</b><span class="chip">Prefix 命中免传 · FP8 KV 减半传输量</span></div>
+        </section>
+      </div>
+      <div class="tags"><span class="lb">关键概念</span><span class="tag">GPUDirect RDMA</span><span class="tag">Host Memory 中转</span><span class="tag">零拷贝</span><span class="tag">带宽下限估算</span></div>
+    </div>
+  </details>
+
+  <details class="card" style="--c:#e11d48">
+    <summary><span class="num">4</span>
+      <span class="ct"><span class="t">按层流水能否成立</span><span class="st">理想是 Layer 0 KV 到达就开算 Layer 0；任一侧不支持即退化为串行</span></span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7"/></svg>
+    </summary>
+    <div class="body">
+      <p class="lead"><b>是什么：</b>传输与计算重叠是 PD 分离收益的关键；理想是「Layer 0 KV 到达就开始算 Layer 0」，能否按层流水取决于 KV Connector、Worker、Attention Backend、Cache 布局和底层传输实现之间的协作。</p>
+      <div class="cols">
+        <section><h4>⚠️ 异构下为何关键</h4><ul>
+          <li>Worker 侧接口 <code>start_load_kv / wait_for_layer_load / save_kv_layer</code> ——<b>两侧由不同平台提供，任何一侧不支持分层等待/保存，流水即断</b>。</li>
+          <li>退化为「整请求 KV 到齐再 Decode」→ 传输与计算完全串行，此时<b>PD 分离的收益会显著下降</b>。</li>
+          <li>layer 信息元数据、逐层确认机制都要两侧语义对齐。</li>
+        </ul></section>
+        <section><h4>📌 作用的传输项</h4>
+          <div class="io"><b>直接影响</b><code>layer 信息 + 传输状态元数据<br>+ KV Tensor 的发送节奏</code></div>
+          <div class="io"><b>发生位置</b><code>传输通道 ⇄ D 侧执行编排</code></div>
+        </section>
+        <section><h4>🧭 缓解方向</h4>
+          <div class="dep"><b>接口</b><span class="chip">KV Connector 控制面/数据面分离，两侧实现同一契约</span></div>
+          <div class="dep"><b>分块</b><span class="chip">按层/按块等待，传输与 Decode 重叠</span></div>
+        </section>
+      </div>
+      <div class="tags"><span class="lb">关键概念</span><span class="tag">wait_for_layer_load</span><span class="tag">save_kv_layer</span><span class="tag">传输计算重叠</span><span class="tag">KV Connector</span></div>
+    </div>
+  </details>
+
+  <details class="card" style="--c:#e11d48">
+    <summary><span class="num">5</span>
+      <span class="ct"><span class="t">Prefix Cache 跨节点复用前提</span><span class="st">哈希可复现 · extra_keys 一致 · 有效性边界成立，否则「少传」落空</span></span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7"/></svg>
+    </summary>
+    <div class="body">
+      <p class="lead"><b>是什么：</b>跨节点不是每次全量搬运——前缀命中可复用远端已有 KV。但复用的正确性有一串前提，异构下每一项都可能不成立。</p>
+      <div class="cols">
+        <section><h4>⚠️ 异构下为何关键</h4><ul>
+          <li>链式哈希 = f(前驱块哈希, token_ids, extra_keys)；<b>跨进程/跨节点对得上就必须放弃随机 NONE_HASH 默认，显式设 PYTHONHASHSEED</b>（可复现性与不可预测性的取舍）。</li>
+          <li>extra_keys（LoRA、多模态、cache_salt）要求两侧收集口径一致，否则错误复用。</li>
+          <li>复用边界包括：<b>远端 KV 是否仍有效、不同模型版本能否复用、不同数据类型能否复用、不同并行配置布局是否兼容、被驱逐后如何通知</b>。</li>
+        </ul></section>
+        <section><h4>📌 作用的传输项</h4>
+          <div class="io"><b>直接影响</b><code>是否传输、传输多少<br>（get_num_new_matched_tokens）</code></div>
+          <div class="io"><b>发生位置</b><code>P 哈希计算 + D 有效性校验</code></div>
+        </section>
+        <section><h4>🧭 缓解方向</h4>
+          <div class="dep"><b>哈希</b><span class="chip">显式 PYTHONHASHSEED · 注入式哈希函数（sha256/xxhash）</span></div>
+          <div class="dep"><b>失效</b><span class="chip">引用计数 · 驱逐通知 · 版本/有效期管理</span></div>
+        </section>
+      </div>
+      <div class="tags"><span class="lb">关键概念</span><span class="tag">链式哈希</span><span class="tag">PYTHONHASHSEED</span><span class="tag">extra_keys 隔离</span><span class="tag">复用边界</span></div>
+    </div>
+  </details>
+
+  <details class="card" style="--c:#e11d48">
+    <summary><span class="num">6</span>
+      <span class="ct"><span class="t">接收端内存分配与同步语义</span><span class="st">确认「写完」才开算——异构设备的异步与错误暴露时机不同</span></span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7"/></svg>
+    </summary>
+    <div class="body">
+      <p class="lead"><b>是什么：</b>「接收端内存分配、Tensor 布局转换、传输完成后的同步」是真实交接延迟的组成部分；做不严则是正确性问题。</p>
+      <div class="cols">
+        <section><h4>⚠️ 异构下为何关键</h4><ul>
+          <li>异构设备的内存池、分配器行为不同，需按设备单独适配。</li>
+          <li>不同设备<b>异步执行、算子错误可能延迟到同步点才暴露</b>——同步语义适配是最容易被低估的部分。</li>
+          <li>状态确认不严格 → KV 尚未写完就开始 Decode → 读到脏数据/缺数据，且这类错误难以复现排查。</li>
+        </ul></section>
+        <section><h4>📌 作用的传输项</h4>
+          <div class="io"><b>直接影响</b><code>传输状态与元数据（完成标记）<br>+ KV Tensor 落地</code></div>
+          <div class="io"><b>发生位置</b><code>D 侧：内存分配 → 写入 → 确认</code></div>
+        </section>
+        <section><h4>🧭 缓解方向</h4>
+          <div class="dep"><b>事务化</b><span class="chip">写入-确认-开算 的明确状态机</span></div>
+          <div class="dep"><b>适配</b><span class="chip">Worker 层适配各设备同步/错误语义</span></div>
+        </section>
+      </div>
+      <div class="tags"><span class="lb">关键概念</span><span class="tag">状态确认</span><span class="tag">同步语义</span><span class="tag">内存池适配</span><span class="tag">脏读防护</span></div>
+    </div>
+  </details>
+
+  <details class="card" style="--c:#e11d48">
+    <summary><span class="num">7</span>
+      <span class="ct"><span class="t">调度配比与故障恢复</span><span class="st">全局约束：异构吞吐单独标定；KV 可重建 → 重算 vs 恢复的权衡</span></span>
+      <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M9 5l7 7-7 7"/></svg>
+    </summary>
+    <div class="body">
+      <p class="lead"><b>是什么：</b>异构两侧吞吐特征不同，扩缩容与路由不能共用同一套标定；故障后 KV 是<b>可重建状态</b>，恢复策略要重新权衡。</p>
+      <div class="cols">
+        <section><h4>⚠️ 异构下为何关键</h4><ul>
+          <li>P 池看输入 token 速率 / TTFT，D 池看活跃请求 / TPOT / KV 使用率——<b>异构下要按各自硬件单独标定</b>，否则配比失衡（一侧堵、一侧闲）。</li>
+          <li>KV Affinity 路由需计入两侧网络位置差异；路由代价 = Prefill 排队 + KV 传输 + Decode 排队 + 容量压力 − Prefix 命中收益。</li>
+          <li>三种恢复策略：重算（简单，长 Prompt 贵）/ 远端 KV 恢复（免重 Prefill，引入存储成本）/ 复制（快但费带宽）——异构下「重算」常比维护跨硬件兼容的 KV 持久化更省事。</li>
+        </ul></section>
+        <section><h4>📌 作用范围</h4>
+          <div class="io"><b>层级</b><code>Router · 扩缩容 · 故障恢复<br>（全局，不限于单次传输）</code></div>
+          <div class="io"><b>判据</b><code>KV 传输 + 协调时间 &lt;<br>混部排队与调度干扰</code></div>
+        </section>
+        <section><h4>🧭 缓解方向</h4>
+          <div class="dep"><b>标定</b><span class="chip">按硬件分池压测，分别建立吞吐模型</span></div>
+          <div class="dep"><b>恢复</b><span class="chip">短 KV 丢弃重算 · 长上下文远端恢复/复制</span></div>
+        </section>
+      </div>
+      <div class="tags"><span class="lb">关键概念</span><span class="tag">独立扩缩容</span><span class="tag">KV Affinity</span><span class="tag">可重建状态</span><span class="tag">重算 vs 恢复 vs 复制</span></div>
+    </div>
+  </details>
+</section>
+
+<footer>
+  生成于 2026-09-28<br>
+  同构 PD 难点 = 传得快；异构 PD 难点 = 对方认得 + 路径不劣化 —— 解法：Platform 能力查询 + 启动期校验提前失败。
+</footer>
+</main>
+
+<script>
+function toggleAll(open){document.querySelectorAll('details.card').forEach(function(d){d.open=open;});}
+</script>
+</body>
+</html>

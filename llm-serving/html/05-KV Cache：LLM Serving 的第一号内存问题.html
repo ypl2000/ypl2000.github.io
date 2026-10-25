@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05 KV Cache：LLM Serving 的第一号内存问题</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 05 KV Cache：LLM Serving 的第一号内存问题</div>
+<article>
+ <div class="ahead">
+  <span class="chip">05</span>
+  <h1>KV Cache：LLM Serving 的第一号内存问题</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 5 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（11 条）</summary><ol><li><a href="#1-pagedattention-的数学本质与源码实现">1. PagedAttention 的数学本质与源码实现</a><ol class="lv3"><li><a href="#11-痛点传统显存分配的碎片灾难">1.1 痛点：传统显存分配的碎片灾难</a></li><li><a href="#12-页表思想的映射操作系统虚拟内存在推理系统中的重现">1.2 页表思想的映射：操作系统虚拟内存在推理系统中的重现</a></li><li><a href="#13-源码解密核心数据结构关系">1.3 源码解密：核心数据结构关系</a></li></ol></li><li><a href="#2-kv-cache-的写入读取与生命周期">2. KV Cache 的写入、读取与生命周期</a></li><li><a href="#3-kv-cache-还能更小吗复用压缩与分层存储">3. KV Cache 还能更小吗：复用、压缩与分层存储</a><ol class="lv3"><li><a href="#31-prefix-cache重复计算复用">3.1 Prefix Cache：重复计算复用</a></li><li><a href="#32-gqa--mqa模型结构级-kv-cache-瘦身">3.2 GQA / MQA：模型结构级 KV Cache 瘦身</a></li><li><a href="#33-mla从-kv-cache-到-latent-cache">3.3 MLA：从 KV Cache 到 Latent Cache</a></li><li><a href="#34-kv-cache-quantization数值压缩与带宽优化">3.4 KV Cache Quantization：数值压缩与带宽优化</a></li><li><a href="#35-kv-cache-offloading-与-swapping">3.5 KV Cache Offloading 与 Swapping</a></li></ol></li></ol></details>
+<p>设想一个场景：</p>
+<p>你有一张 80 GB 的卡，同时来了 100 个请求。第一个请求最后只生成了 300 个 token，第二个生成了 3000 个，第三个一路写到 20K。<strong>问题在于：这三个数字，你在请求到达的那一刻一个都不知道。</strong></p>
+<p>如果按传统做法，给每个请求划一块连续显存来放它的 KV Cache，那你只能按"最坏情况"预留——按模型支持的最大长度划。于是那个只生成 300 token 的请求，占着一块够装 32K token 的地。100 个请求这么一摊，卡就满了，尽管真正装了有效数据的可能不到三成。</p>
+<blockquote>
+<p><strong>显存不是被模型吃掉的，是被"不确定性"浪费掉的。</strong></p>
+</blockquote>
+<p>PagedAttention 的核心思想，用一句话就能说完：</p>
+<blockquote>
+<p><strong>别给请求整块连续空间。把 KV Cache 切成固定大小的小块，用多少申请多少，块与块之间不要求相邻。</strong></p>
+</blockquote>
+<p>这样"预留"就消失了——因为不再需要预判总长度，只需要在写满当前块时再要一块。这个思路你大概率见过：<strong>它就是操作系统的虚拟内存分页</strong>。下面我们从传统做法的具体代价讲起，再看这套页表思想是怎么被搬到 GPU 上的。</p>
+<h2 id="1-pagedattention-的数学本质与源码实现">1. PagedAttention 的数学本质与源码实现</h2>
+<h3 id="11-痛点传统显存分配的碎片灾难">1.1 痛点：传统显存分配的碎片灾难</h3>
+<p>在 PagedAttention 出现之前，每个请求的 KV Cache 必须在 GPU 显存中预分配一段<strong>连续内存</strong>，其长度等于模型支持的最大序列长度。这造成了两类碎片：</p>
+<pre class="wide"><code>GPU HBM (80 GB)，每个请求按 max_len=2048 预留连续空间┌──────────────────────────────────────────────────────────┐│ Req A  ████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ││  
+↑实际用 500  
+↑ 内部碎片：1548 tokens 的空间白占 ││ Req B  ████████████████░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░░  ││ ░░░░░░ 剩余空间凑不出一整段连续的 2048 → Req C 进不来 ░░░  ││        （外部碎片：总量其实够，但不连续）                  
+│└──────────────────────────────────────────────────────────┘</code></pre>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">碎片类型</th>
+<th style="text-align: left;">成因</th>
+<th style="text-align: left;">后果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>内部碎片</strong></td>
+<td style="text-align: left;">按最大长度预留，实际用不了那么多</td>
+<td style="text-align: left;">主要浪费来源</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>外部碎片</strong></td>
+<td style="text-align: left;">已释放的空间不连续</td>
+<td style="text-align: left;">总量够却无法分配给新请求</td>
+</tr>
+</tbody>
+</table>
+<p>总浪费率有多大？PagedAttention 论文（SOSP'23）测得当时的 SOTA 系统中，<strong>真正存放有效 KV 的显存只占 20.4% ~ 38.2%</strong>——也就是约 60% ~ 80% 被碎片和预留吃掉了。</p>
+<h3 id="12-页表思想的映射操作系统虚拟内存在推理系统中的重现">1.2 页表思想的映射：操作系统虚拟内存在推理系统中的重现</h3>
+<p>PagedAttention 的灵感直接来自操作系统的虚拟内存管理。核心思想是将连续的逻辑地址空间映射到不连续的物理页框：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">操作系统虚拟内存</th>
+<th style="text-align: left;">PagedAttention</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">连续的逻辑视图</td>
+<td style="text-align: left;">虚拟地址空间（Page 0,1,2,3…）</td>
+<td style="text-align: left;">逻辑 token 序列（Blk 0,1,2…，每块 16 个 token）</td>
+</tr>
+<tr>
+<td style="text-align: left;">映射表</td>
+<td style="text-align: left;">Page Table（VP → PF）</td>
+<td style="text-align: left;"><strong>Block Table</strong>（虚拟块 → 物理块）</td>
+</tr>
+<tr>
+<td style="text-align: left;">不连续的物理载体</td>
+<td style="text-align: left;">物理页框 Physical Frame</td>
+<td style="text-align: left;"><strong>物理 KV 块</strong> Physical Block（GPU HBM 上）</td>
+</tr>
+<tr>
+<td style="text-align: left;">分配单位</td>
+<td style="text-align: left;">一页（如 4 KB）</td>
+<td style="text-align: left;">一块（<code>block_size</code> 个 token 的 K/V）</td>
+</tr>
+<tr>
+<td style="text-align: left;">好处</td>
+<td style="text-align: left;">进程看到连续内存，实际零散存放</td>
+<td style="text-align: left;">请求看到连续序列，KV 实际零散存放</td>
+</tr>
+</tbody>
+</table>
+<p>映射关系是这样的——注意物理块号完全不需要连续：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144802962。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144802962.png</code></figcaption></figure></p>
+<p>在 vLLM 中，每个物理块（Physical Block）存储固定数量 token 的 K 和 V 张量：</p>
+<pre class="wider"><code># KV Cache 物理布局 (单层)# shape: [num_physical_blocks, block_size, num_kv_heads, head_dim]# 例: [2048 blocks, 16 tokens/block, 8 heads, 128 dim]kv_cache = torch.zeros(num_blocks, block_size, num_kv_heads, head_dim,                        dtype=torch.float16, device=&quot;cuda&quot;)</code></pre>
+<h3 id="13-源码解密核心数据结构关系">1.3 源码解密：核心数据结构关系</h3>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144652275。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144652275.png</code></figcaption></figure></p>
+<p>顺着箭头从上到下跟踪：Request 只是逻辑层，不直接触及 GPU 显存；KVCacheBlock 才是物理块的元数据，它同时挂在 Request 的 blocks 列表和 BlockPool 的 free/cached 列表里；block_id 最终索引到 GPU HBM 中的一片连续显存，里面放的是一整块 block_size 个 token 的 K 和 V。这三层映射是理解后面 Prefix Cache 复用和 Preemption 释放的基础。</p>
+<blockquote>
+<p><strong>回到我们的例子</strong>：2050 个 prompt token，<code>block_size=16</code>，于是需要 <code>⌈2050/16⌉ = 129</code> 个块（前 128 块装满 2048 个 token，第 129 块只装 2 个）。生成完 300 个 token 后，序列长 2350，共占 <strong>147 个块</strong>。</p>
+<p>注意一个巧合般的细节：<strong>2000 个 token 的 system prompt 恰好是 125 个整块</strong>。这不是偶然设计，但它揭示了 Prefix Cache 的一个硬约束——只有<strong>装满</strong>的块才会被缓存，所以可复用的边界永远对齐到 <code>block_size</code>。下一节就用这一点算账。</p>
+</blockquote>
+<p><code>BlockPool</code>（<code>vllm/v1/core/block_pool.py</code>）管理所有物理块的分配和回收，使用双向链表实现高效的 LRU 驱逐：</p>
+<div class="sourceCode" id="cb3"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="co"># vllm/v1/core/block_pool.py (简化)class BlockPool:    def __init__(self, num_gpu_blocks: int, ...):        self.num_gpu_blocks = num_gpu_blocks        self.free_block_queue = FreeKVCacheBlockQueue(num_gpu_blocks)        # Prefix Cache: hash → 物理块映射        self.cached_block_hash_to_block = BlockHashToBlockMap()    def get_new_blocks(self, num_blocks: int) -&gt; list[KVCacheBlock]:        &quot;&quot;&quot;从空闲队列分配新块（如果不够，驱逐 LRU 缓存块）&quot;&quot;&quot;        ...    def free_blocks(self, blocks: Iterable[KVCacheBlock]):        &quot;&quot;&quot;ref_cnt--，归零则回收到空闲队列&quot;&quot;&quot;        ...    def cache_full_blocks(self, request, blocks, ...):        &quot;&quot;&quot;将满块的 hash 注册到 Prefix Cache&quot;&quot;&quot;        ...</span></span></code></pre></div>
+<p>块分配的布局（引自 <code>allocate_slots()</code> 注释）：</p>
+<pre class="wider"><code>  |&lt;──── computed ────&gt;|&lt;─ new_computed ─&gt;|&lt;─ external ─&gt;|&lt;── new ──&gt;|&lt;─ lookahead ─&gt;|                                                          |&lt;── to be computed ──────&gt;|                                          |&lt;────────── to be allocated ──────&gt;|                                          |&lt;────────── to be cached ──────────&gt;|  computed:      之前已缓存在 KV Cache 中的 tokens（Prefix Cache 命中）  new_computed:  本轮新计算但已完成的 tokens  external:      从远端传输的 KV 块（PD 分离场景）  new:           需要本轮计算的新 tokens  lookahead:     为 Speculative Decoding 预留的额外 tokens</code></pre>
+<p>这个布局也揭示了 Scheduler 为什么不能按请求类型硬分类。一轮迭代中一个请求可能同时覆盖 computed（prefix cache 命中）、new（需要新计算）和 lookahead（spec decode 预留），不同请求在这个轴上的位置各不相同。token 预算模型统一处理这些区间，而不是按"prefill 请求"和"decode 请求"分开。</p>
+<h2 id="2-kv-cache-的写入读取与生命周期">2. KV Cache 的写入、读取与生命周期</h2>
+<p>上一节讲的是「块从哪来」，这一节讲「块怎么被用完再还回去」——一次请求从 Prefill 批量写入，到 Decode 逐 slot 追加，最后在完成或被抢占时归还，构成 KV Cache 的完整生命周期。</p>
+<pre class="wider"><code>                     KV Cache 生命周期全景
+┌─────── Prefill 阶段 ──────┐
+┌────── Decode 阶段 ──────┐  │                            │   │                          │  │  prompt tokens:            │   │  每步 1 个新 token:       │  │  [t₁, t₂, ..., tₙ]       │   │  [tₙ₊₁], [tₙ₊₂], ...   │  │       │                    │   │       │                  │  │  
+▼                    │   │  
+▼                  │  │
+┌─────────────────┐      │   │
+┌──────────┐           │  │  │ 批量写入 KV     │      │   │  │ 增量追加  │           │  │  │ Cache 块        │      │   │  │ 1 个 slot │           │  │  │                 │      │   │  │           │           │  │  │ Block 0: [t₁~t₁₆]│   │   │  │ Block 2:  │           │  │  │ Block 1: [t₁₇~t₃₂]│  │   │  │ 追加 tₙ₊₁ │           │  │  │ Block 2: [t₃₃~tₙ] │   │   │
+└──────────┘           │  │
+└─────────────────┘      │   │                          │
+└────────────────────────────┘
+└──────────────────────────┘
+┌─────── Attention 读取 ──────────────────────────────────┐  │                                                         │  │  Block Table (虚拟→物理映射):                            │  │  req_42 → [PhyBlock_7, PhyBlock_13, PhyBlock_21]       │  │                                                         │  │  Attention Kernel 通过 Block Table 索引读取:             │  │  for each query position:                               │  │    for each block in block_table[req]:                  │  │      K_block = kv_cache[block_id, :, :key_heads, :]    │  │      V_block = kv_cache[block_id, :, :val_heads, :]    │  │      score += Q @ K_blockᵀ                              │  │    attn_out = softmax(scores) @ V_blocks               │
+└─────────────────────────────────────────────────────────┘
+┌─────── 生命周期终结 ────────────────────────────────────┐  │                                                         │  │  请求完成:                                               │  │    Scheduler → KVCacheManager.free(request)             │  │    → ref_cnt-- 对所有块                                  │  │    → ref_cnt == 0 的块归还 free_block_queue              │  │    → 有 block_hash 的块进入 LRU 缓存（Prefix Cache）     │  │    → 无 hash 的块立即回收                                 │  │                                                         │  │  抢占:                                                   │  │    → 释放所有块                                          │  │    → num_computed_tokens = 0 （需从头重算）               │  │    → 但 Prefix Cache 命中可跳过部分重算                   │
+└─────────────────────────────────────────────────────────┘</code></pre>
+<p><strong>① 写入</strong>——两个阶段的写法完全不同：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">阶段</th>
+<th style="text-align: left;">写入方式</th>
+<th style="text-align: left;">例子</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Prefill</td>
+<td style="text-align: left;">批量写入若干整块</td>
+<td style="text-align: left;"><code>Block 0: t₁~t₁₆</code>、<code>Block 1: t₁₇~t₃₂</code>、<code>Block 2: t₃₃~tₙ</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">Decode</td>
+<td style="text-align: left;">每步增量追加 1 个 slot</td>
+<td style="text-align: left;"><code>Block 2</code> 尾部追加 <code>tₙ₊₁</code>，写满了才要新块</td>
+</tr>
+</tbody>
+</table>
+<p><strong>② 读取</strong>——Attention Kernel 不认识"请求"，只认 Block Table：</p>
+<pre class="wider"><code>Block Table:  req_42 → [PB_7, PB_13, PB_21]for each query position:    for block_id in block_table[req]:        K_block = kv_cache[block_id, :, :key_heads, :]        V_block = kv_cache[block_id, :, :val_heads, :]        scores += Q @ K_blockᵀ    attn_out = softmax(scores) @ V_blocks</code></pre>
+<p><strong>③ 归还</strong>——这一步决定了块能不能被别人复用：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">触发</th>
+<th style="text-align: left;">动作</th>
+<th style="text-align: left;">关键后果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">请求完成</td>
+<td style="text-align: left;"><code>KVCacheManager.free(request)</code>：所有块 <code>ref_cnt--</code></td>
+<td style="text-align: left;"><code>ref_cnt == 0</code> 才真正归还 <code>free_block_queue</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">↳ 块有 <code>block_hash</code></td>
+<td style="text-align: left;">进入 LRU 缓存</td>
+<td style="text-align: left;"><strong>留给 Prefix Cache 复用</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">↳ 块无 hash（未写满）</td>
+<td style="text-align: left;">立即回收</td>
+<td style="text-align: left;">无法复用</td>
+</tr>
+<tr>
+<td style="text-align: left;">被抢占</td>
+<td style="text-align: left;">释放所有块 + <code>num_computed_tokens = 0</code></td>
+<td style="text-align: left;">需重算，但 Prefix Cache 命中可跳过大部分</td>
+</tr>
+</tbody>
+</table>
+<p>注意倒数第二行：<strong>块只有"写满"才会被缓存</strong>。这解释了为什么 Prefix Cache 的命中粒度是 <code>block_size</code>，而不是单个 token。</p>
+<h2 id="3-kv-cache-还能更小吗复用压缩与分层存储">3. KV Cache 还能更小吗：复用、压缩与分层存储</h2>
+<p>在进入具体手段之前，先立一个分层框架——<strong>这三层解决的是完全不同的问题，不应该混为一谈</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">手段</th>
+<th style="text-align: left;">解决的问题</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">系统管理层</td>
+<td style="text-align: left;">PagedAttention、Prefix Cache</td>
+<td style="text-align: left;">已经要存这么多，<strong>显存怎么管才不浪费</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">模型架构层</td>
+<td style="text-align: left;">MQA / GQA / MLA</td>
+<td style="text-align: left;"><strong>本来到底需要存多少</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">数值层</td>
+<td style="text-align: left;">FP8 / INT8 量化</td>
+<td style="text-align: left;">每个 KV 元素<strong>占几个字节</strong></td>
+</tr>
+</tbody>
+</table>
+<p>三者是正交的，可以叠加：MLA 减少了要存的量，PagedAttention 管理这些量的摆放，FP8 再把每个元素压小。下面按这个顺序展开。</p>
+<h3 id="31-prefix-cache重复计算复用">3.1 Prefix Cache：重复计算复用</h3>
+<p>在生产环境中，大量请求共享相同的 System Prompt（如 ChatGPT 的系统指令可能占 2000+ tokens）。Prefix Cache 的核心思想是：如果两个请求的前缀 token 完全相同，它们可以共享同一份 KV Cache 块。</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144621766。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144621766.png</code></figcaption></figure></p>
+<p>vLLM 使用链式哈希确保前缀匹配的正确性——每个块的哈希值依赖其前驱块的哈希，因此只有完全相同的前缀序列才会产生相同的哈希链。</p>
+<blockquote>
+<p><strong>回到我们的例子</strong>：那 2000 token 的 system prompt 是 <strong>125 个整块</strong>。第一个请求跑完后它们全部进入缓存；<strong>第二个请求带着同样的 system prompt 到来时，这 125 块全部命中</strong>，只需要 prefill 用户那 50 个 token。</p>
+<p>省下多少？按第 1.6 节的量算：</p>
+<ul>
+<li><strong>计算</strong>：2000 token 的 prefill 不用做了，TTFT 从约 92 ms 掉到 5 ms 量级</li>
+<li><strong>显存</strong>：这 125 块（约 625 MB 的 KV）在两个请求间<strong>共享同一份物理块</strong>，靠 <code>ref_cnt</code> 计数，不是复制</li>
+</ul>
+<p>在真实的多租户服务里，system prompt 往往被成百上千个请求共享——这就是为什么 Prefix Cache 是性价比最高的优化之一。</p>
+</blockquote>
+<div class="sourceCode" id="cb7"><pre class="wider sourceCode python"><code class="sourceCode python"><span id="cb7-1"><a href="#cb7-1" aria-hidden="true" tabindex="-1"></a><span class="co"># vllm/v1/core/kv_cache_utils.py (签名照抄, 函数体简化)def hash_block_tokens(    hash_function: Callable[[Any], bytes],    parent_block_hash: BlockHash | None,    curr_block_token_ids: Sequence[int],    extra_keys: tuple[Any, ...] | None = None,) -&gt; BlockHash:    &quot;&quot;&quot;链式哈希：当前块哈希 = f(前驱块哈希, 本块 token ids, 额外键)&quot;&quot;&quot;    if not parent_block_hash:        parent_block_hash = NONE_HASH  # 首块的哈希起点    return BlockHash(        hash_function((parent_block_hash, tuple(curr_block_token_ids), extra_keys))    )</span></span></code></pre></div>
+<p>这个签名里有两个细节值得留意，它们不是实现噪音：</p>
+<ul>
+<li><strong>哈希函数是注入进来的，不是 Python 内建的 <code>hash()</code></strong>，返回值也是 bytes 而非 int（可选 <code>sha256_cbor</code>、<code>xxhash_cbor</code> 等）。因为块哈希要在多个 worker、甚至跨节点（PD 分离、LMCache）之间对得上，必须可控且可复现。</li>
+<li><strong>链条起点 <code>NONE_HASH</code> 默认是随机的。</strong> <code>init_none_hash()</code> 在未设置 <code>PYTHONHASHSEED</code> 时取 <code>os.urandom(32)</code>，即每个进程一个随机起点；只有显式设置 <code>PYTHONHASHSEED</code> 才会变成确定值。这是一个刻意的安全默认：随机起点让块哈希无法被外部预测，避免跨租户的缓存探测；而想让多进程/多节点共享同一份 prefix cache，就必须放弃这个默认。<strong>可复现性和不可预测性在这里是一对取舍</strong>，vLLM 默认选了后者。</li>
+<li><strong><code>extra_keys</code> 是隔离用的。</strong> 同一串 token 在不同 LoRA adapter、不同多模态输入、不同 <code>cache_salt</code>、不同 prompt embeds 下不能复用同一份 KV，这些维度都由 <code>generate_block_hash_extra_keys()</code> 收集进 <code>extra_keys</code>。也就是说，"前缀相同"的判定比"token 序列相同"严格——这是 prefix cache 的正确性边界。</li>
+</ul>
+<h3 id="32-gqa--mqa模型结构级-kv-cache-瘦身">3.2 GQA / MQA：模型结构级 KV Cache 瘦身</h3>
+<p>KV Cache 的大小与 KV head 数量成正比。Grouped-Query Attention (GQA) 和 Multi-Query Attention (MQA) 通过减少 KV head 数来缩减 KV Cache：</p>
+<p>以 8 个 Query head 为例，三种变体的差别只在于<strong>几个 Q head 共享一份 K/V</strong>：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">变体</th>
+<th style="text-align: left;">Q heads</th>
+<th style="text-align: left;">K/V heads</th>
+<th style="text-align: left;">每 token 每层 KV 大小</th>
+<th style="text-align: left;">相对 MHA</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>MHA</strong></td>
+<td style="text-align: left;">8</td>
+<td style="text-align: left;">8（一对一）</td>
+<td style="text-align: left;"><code>2 × L × S × H × d</code></td>
+<td style="text-align: left;">100%</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>GQA</strong></td>
+<td style="text-align: left;">8</td>
+<td style="text-align: left;">2~4（分组共享）</td>
+<td style="text-align: left;"><code>2 × L × S × G × d</code></td>
+<td style="text-align: left;">1/2 ~ 1/8</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>MQA</strong></td>
+<td style="text-align: left;">8</td>
+<td style="text-align: left;">1（全部共享）</td>
+<td style="text-align: left;"><code>2 × L × S × 1 × d</code></td>
+<td style="text-align: left;">1/8 ~ 1/64</td>
+</tr>
+</tbody>
+</table>
+<pre class="wider"><code>MHA   Q: [1][2][3][4][5][6][7][8]      K: [1][2][3][4][5][6][7][8]      ← 一个 Q 配一个 K/VGQA   Q: [1][2][3][4][5][6][7][8]      K: [ G1  ][ G2  ][ G3  ][ G4 ]   ← 每 2 个 Q 共享一份MQA   Q: [1][2][3][4][5][6][7][8]      K: [        K1            ]      ← 全部 Q 共享一份</code></pre>
+<p>代价是表达能力：K/V head 越少，KV Cache 越小，但模型区分不同注意力模式的自由度也越低。GQA 是目前公认的甜点区——这也是为什么 Llama 3 全系都用 GQA。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">模型</th>
+<th style="text-align: left;">注意力类型</th>
+<th style="text-align: left;">num_heads</th>
+<th style="text-align: left;">num_kv_heads</th>
+<th style="text-align: left;">KV Cache 比例</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">GPT-3 175B</td>
+<td style="text-align: left;">MHA</td>
+<td style="text-align: left;">96</td>
+<td style="text-align: left;">96</td>
+<td style="text-align: left;">100%</td>
+</tr>
+<tr>
+<td style="text-align: left;">Llama 3 70B</td>
+<td style="text-align: left;">GQA</td>
+<td style="text-align: left;">64</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: left;">12.5%</td>
+</tr>
+<tr>
+<td style="text-align: left;">Llama 3 8B</td>
+<td style="text-align: left;">GQA</td>
+<td style="text-align: left;">32</td>
+<td style="text-align: left;">8</td>
+<td style="text-align: left;">25%</td>
+</tr>
+<tr>
+<td style="text-align: left;">Falcon 7B</td>
+<td style="text-align: left;">MQA</td>
+<td style="text-align: left;">71</td>
+<td style="text-align: left;">1</td>
+<td style="text-align: left;">1.4%</td>
+</tr>
+<tr>
+<td style="text-align: left;">DeepSeek V3</td>
+<td style="text-align: left;">MLA</td>
+<td style="text-align: left;">128</td>
+<td style="text-align: left;">-</td>
+<td style="text-align: left;">~2% (存 576 维 latent，非 128×128 的完整 KV)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="33-mla从-kv-cache-到-latent-cache">3.3 MLA：从 KV Cache 到 Latent Cache</h3>
+<p>DeepSeek V2/V3 提出的 Multi-head Latent Attention (MLA) 是一种更激进的 KV Cache 压缩方案。它不存储完整的 K、V 张量，而是存储一个低维的 latent 向量：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;"></th>
+<th style="text-align: left;">传统 MHA / GQA</th>
+<th style="text-align: left;">MLA（DeepSeek）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">存的是什么</td>
+<td style="text-align: left;"><code>K [Hkv, d]</code> + <code>V [Hkv, d]</code></td>
+<td style="text-align: left;"><code>c_kv [kv_lora_rank]</code> + <code>k_pe [qk_rope_head_dim]</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">每 token 每层</td>
+<td style="text-align: left;"><code>2 × Hkv × d</code> bytes</td>
+<td style="text-align: left;"><code>(kv_lora_rank + qk_rope_head_dim) × sizeof(dtype)</code></td>
+</tr>
+<tr>
+<td style="text-align: left;">实例</td>
+<td style="text-align: left;">Llama-70B（GQA-8）：<code>2×8×128×2B</code> = <strong>4 KB</strong></td>
+<td style="text-align: left;">DeepSeek V3：<code>(512+64)×2B</code> ≈ <strong>1.1 KB</strong></td>
+</tr>
+</tbody>
+</table>
+<p>MLA 的运作分两步——<strong>存的时候压缩，用的时候还原</strong>：</p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144548684。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144548684.png</code></figcaption></figure></p>
+<p>但朴素做法有个致命问题：<strong>每一步 Decode 都要把全部历史 token 的 latent 解压回全维 K/V</strong>，那省下的显存又变成了带宽开销。真正的关键优化叫 <strong>"吸收"（Absorbing）</strong>——把解压矩阵 <code>W_uk</code> 预先融合进 <code>W_q</code>，于是可以<strong>直接在 latent 空间做 Attention，完全不解压</strong>。这一手的工程细节留到第 7.4.1 节展开。</p>
+<p>压缩效果：相比同规模 MHA 可缩减一个数量级以上；相比 Llama 式 GQA-8（4 KB/token/layer）约缩减 3~4x。</p>
+<p>vLLM 中 MLA 的实现位于 <code>vllm/model_executor/layers/mla.py</code>，通过 <code>MLAAttentionSpec</code> 定义其特殊的 KV Cache 规格（存储 latent 而非完整 KV）。</p>
+<h3 id="34-kv-cache-quantization数值压缩与带宽优化">3.4 KV Cache Quantization：数值压缩与带宽优化</h3>
+<p>除了结构级的压缩（GQA/MQA/MLA），还可以通过数值量化进一步压缩 KV Cache：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">格式</th>
+<th style="text-align: left;">每元素</th>
+<th style="text-align: left;">相对 FP16</th>
+<th style="text-align: left;">精度影响</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">FP32</td>
+<td style="text-align: left;">4 bytes</td>
+<td style="text-align: left;">2.0×</td>
+<td style="text-align: left;">基准（训练精度）</td>
+</tr>
+<tr>
+<td style="text-align: left;">FP16 / BF16</td>
+<td style="text-align: left;">2 bytes</td>
+<td style="text-align: left;">1.0×</td>
+<td style="text-align: left;">标准推理精度</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>FP8 (E4M3)</strong></td>
+<td style="text-align: left;">1 byte</td>
+<td style="text-align: left;">0.5×</td>
+<td style="text-align: left;"><strong>轻微损失，实践中最安全的选择</strong></td>
+</tr>
+<tr>
+<td style="text-align: left;">INT8</td>
+<td style="text-align: left;">1 byte</td>
+<td style="text-align: left;">0.5×</td>
+<td style="text-align: left;">需要校准，按 head / channel 量化</td>
+</tr>
+<tr>
+<td style="text-align: left;">INT4</td>
+<td style="text-align: left;">0.5 bytes</td>
+<td style="text-align: left;">0.25×</td>
+<td style="text-align: left;">显著损失，很少用于 KV Cache</td>
+</tr>
+</tbody>
+</table>
+<p>算一遍实际规模（Llama-70B、GQA-8、80 layers、seq_len=4096）：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">场景</th>
+<th style="text-align: left;">计算</th>
+<th style="text-align: left;">结果</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">单请求 FP16</td>
+<td style="text-align: left;">4 KB/token/layer × 4096 × 80</td>
+<td style="text-align: left;">1.34 GB</td>
+</tr>
+<tr>
+<td style="text-align: left;">单请求 FP8</td>
+<td style="text-align: left;">2 KB/token/layer × 4096 × 80</td>
+<td style="text-align: left;">0.67 GB（省 50%）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>并发 8 路 FP16</strong></td>
+<td style="text-align: left;">1.34 GB × 8</td>
+<td style="text-align: left;"><strong>10.7 GB</strong></td>
+</tr>
+</tbody>
+</table>
+<p>单请求看着不大，但注意最后一行：<strong>KV Cache 是"并发数 × 上下文长度"的乘积</strong>，这才是它压垮显存的方式。</p>
+<p>量化粒度决定了精度与开销的平衡，scale 分得越细越准、但元数据越多：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">粒度</th>
+<th style="text-align: left;">含义</th>
+<th style="text-align: left;">精度</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">Per-tensor</td>
+<td style="text-align: left;">整个 KV Cache 共享 1 个 scale</td>
+<td style="text-align: left;">最差</td>
+</tr>
+<tr>
+<td style="text-align: left;">Per-token</td>
+<td style="text-align: left;">每个 token 一个 scale</td>
+<td style="text-align: left;">较好</td>
+</tr>
+<tr>
+<td style="text-align: left;">Per-head</td>
+<td style="text-align: left;">每个 head 一个 scale</td>
+<td style="text-align: left;">精细</td>
+</tr>
+<tr>
+<td style="text-align: left;">Per-channel</td>
+<td style="text-align: left;">每个 channel 一个 scale</td>
+<td style="text-align: left;">最优</td>
+</tr>
+<tr>
+<td style="text-align: left;">Per-group</td>
+<td style="text-align: left;">每 G 个元素共享 scale</td>
+<td style="text-align: left;">灵活折中</td>
+</tr>
+</tbody>
+</table>
+<p>实现上分两个动作：<strong>Quantize-on-write</strong>（写入时即以低精度存储）和 <strong>Dequantize-on-read</strong>（读取时反量化，或直接在 attention kernel 内处理）。是否启用取决于模型、dtype、backend 与配置。</p>
+<p>KV Cache 量化与 PagedAttention 在设计上可以组合：量化后的 KV 仍按 block 粒度管理，同时需要记录相应 scale 或格式元数据。具体是否支持、如何存储 scale、是否在 attention kernel 内完成反量化，取决于 v0.27.1 中对应模型、dtype 和 attention backend 的实现。</p>
+<p><strong>注意</strong>：Softmax 对 Key 的误差特别敏感（因为指数函数会放大误差），长上下文下量化误差可能累积。FP8 是实践中最安全的 KV Cache 量化格式。</p>
+<h3 id="35-kv-cache-offloading-与-swapping">3.5 KV Cache Offloading 与 Swapping</h3>
+<p>当 GPU 显存不足时，vLLM 支持将 KV Cache 卸载到更低层的存储：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">层级</th>
+<th style="text-align: left;">容量</th>
+<th style="text-align: left;">带宽</th>
+<th style="text-align: left;">延迟</th>
+<th style="text-align: left;">存什么</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>GPU HBM</strong>（热）</td>
+<td style="text-align: left;">10–80 GB</td>
+<td style="text-align: left;">3.35 TB/s (H100)</td>
+<td style="text-align: left;">~ns</td>
+<td style="text-align: left;">活跃请求的 KV</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>CPU DRAM</strong>（温）</td>
+<td style="text-align: left;">256 GB–2 TB</td>
+<td style="text-align: left;">~200 GB/s</td>
+<td style="text-align: left;">~100 ns</td>
+<td style="text-align: left;">被抢占请求的 KV（经 PCIe Gen5，64 GB/s）</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>NVMe SSD</strong>（冷）</td>
+<td style="text-align: left;">1–16 TB</td>
+<td style="text-align: left;">~7 GB/s</td>
+<td style="text-align: left;">~10 μs</td>
+<td style="text-align: left;">长期前缀缓存（较新的方向）</td>
+</tr>
+</tbody>
+</table>
+<p>当 GPU 显存不够时，有三种应对策略，代价各不相同：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">策略</th>
+<th style="text-align: left;">做法</th>
+<th style="text-align: left;">优点</th>
+<th style="text-align: left;">缺点</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;"><strong>Recomputation</strong>（重算）</td>
+<td style="text-align: left;">直接释放 KV，恢复时从头算</td>
+<td style="text-align: left;">无传输开销，不占 CPU 内存</td>
+<td style="text-align: left;">浪费 GPU 算力</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Swapping</strong>（换出）</td>
+<td style="text-align: left;">KV 块 GPU→CPU，恢复时回传</td>
+<td style="text-align: left;">保留了已算结果</td>
+<td style="text-align: left;">吃 PCIe 带宽</td>
+</tr>
+<tr>
+<td style="text-align: left;"><strong>Quantization + Offload</strong></td>
+<td style="text-align: left;">量化后再换出</td>
+<td style="text-align: left;">传输量减半</td>
+<td style="text-align: left;">额外精度损失</td>
+</tr>
+</tbody>
+</table>
+<p>vLLM V1 当前主要使用 <strong>Recomputation</strong> 策略（<code>_preempt_request()</code> 中将 <code>num_computed_tokens</code> 置零），因为在 Prefix Cache 存在的情况下，重算的实际成本远低于理论最坏情况——大部分前缀块仍在缓存中可复用。</p>
+
+
+</article>
+<div class="pnav">
+ <span><a href="04-Scheduler：GPU 这一轮到底给谁用.html">← 上一篇 04</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><a href="06-GPU 执行：如何让每个 Token 算得更快.html">下一篇 06 →</a></span>
+</div>
+</body>
+</html>

@@ -1,0 +1,719 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11 Serving Infra 的下一站：从模型执行器到分布式智能操作系统</title>
+<style>
+:root{--line:#e5e7eb;--text:#1f2328;--muted:#6b7280;--accent:#0f766e;--teal:#0891b2}
+*{box-sizing:border-box}
+body{margin:0;background:#f3f4f6;color:var(--text);
+ font-family:-apple-system,"Segoe UI","Microsoft YaHei","PingFang SC",Roboto,sans-serif;
+ font-size:16px;line-height:1.95}
+a{color:var(--teal)}
+.topbar{position:sticky;top:0;z-index:10;background:rgba(255,255,255,.92);backdrop-filter:blur(8px);
+ border-bottom:1px solid var(--line)}
+.topbar .wrap{display:flex;align-items:center;gap:14px;height:52px;max-width:980px;margin:0 auto;padding:0 22px}
+.brand{font-weight:700;color:var(--text);text-decoration:none;font-size:15px;white-space:nowrap}
+.topnav{margin-left:auto;display:flex;gap:12px;font-size:13.5px;flex-wrap:wrap}
+.topnav a{color:var(--muted);text-decoration:none;white-space:nowrap}
+.topnav a:hover{color:var(--accent)}
+.crumb{max-width:980px;margin:22px auto 0;padding:0 22px;font-size:13.5px;color:var(--muted)}
+.crumb a{color:var(--muted);text-decoration:none}.crumb a:hover{color:var(--accent)}
+article{max-width:980px;margin:10px auto 70px;background:#fff;border:1px solid var(--line);
+ border-radius:16px;padding:40px 52px 34px;box-shadow:0 1px 3px rgba(15,23,42,.06)}
+.ahead{padding-bottom:16px;border-bottom:1px solid var(--line);margin-bottom:8px}
+.ahead .chip{display:inline-flex;align-items:center;justify-content:center;min-width:40px;height:24px;
+ border-radius:7px;background:var(--accent);color:#fff;font-size:13px;font-weight:700;padding:0 8px}
+.ahead h1{font-size:24px;margin:10px 0 6px;letter-spacing:.3px;line-height:1.45}
+.ahead .meta{color:var(--muted);font-size:13px}
+details.toc{margin:18px 0 6px;border:1px solid var(--line);border-radius:12px;background:#f8fafc;padding:10px 18px}
+details.toc summary{cursor:pointer;font-weight:600;font-size:14px;color:var(--accent)}
+details.toc ol{margin:8px 0 6px;padding-left:22px;font-size:14px}
+details.toc li{margin:3px 0}
+details.toc .lv3{margin-left:20px;font-size:13.2px;color:var(--muted)}
+article h2{font-size:21px;margin:42px 0 14px;padding-bottom:8px;border-bottom:1px solid var(--line)}
+article h3{font-size:18px;margin:32px 0 10px}
+article h4{font-size:16px;margin:24px 0 8px;color:var(--accent)}
+article p{margin:13px 0;text-align:justify}
+article ul,article ol{margin:12px 0;padding-left:26px}
+article li{margin:5px 0}
+article blockquote{margin:16px 0;background:#f8fafc;border:1px solid var(--line);border-left:4px solid #cbd5e1;
+ border-radius:10px;padding:8px 18px;color:#475569}
+article blockquote p{margin:6px 0;text-align:left}
+article img{max-width:100%;display:block;margin:20px auto;border:1px solid var(--line);
+ border-radius:10px;background:#f8fafc;min-height:56px;padding:6px}
+article code{background:#f1f5f9;border:1px solid #e2e8f0;border-radius:5px;padding:1px 6px;
+ font-family:Consolas,"JetBrains Mono","Courier New",monospace;font-size:.88em}
+article pre{background:#fafbfc;border:1px solid var(--line);border-radius:10px;padding:14px 16px;
+ overflow-x:auto;line-height:1.6;margin:16px 0}
+article pre code{background:none;border:none;padding:0;font-size:13.2px}
+div.sourceCode{margin:16px 0}
+div.sourceCode pre{margin:0}
+article pre.wide code{font-size:11.5px}
+article pre.wider code{font-size:10.5px}
+/* skylighting（pandoc --highlight-style=tango 对应类） */
+.kw,.cf{color:#1c4a80;font-weight:600}.dt{color:#7a3e9d}.st,.ss{color:#2a7a2a}
+.co,.do{color:#8a94a6;font-style:italic}.fu,.ot{color:#6f42c1}.dv,.fl{color:#b35000}
+.op{color:#475569}.bu{color:#005cc5}.va{color:#1f2328}.cn{color:#b35000}
+.at{color:#7a3e9d}.ch{color:#2a7a2a}.ex{color:#1c4a80}.im{color:#1c4a80}
+article table{width:100%;border-collapse:collapse;margin:18px 0;font-size:14px;display:block;overflow-x:auto}
+article th{background:#f1f5f9;font-weight:600}
+article th,article td{border:1px solid var(--line);padding:8px 12px;text-align:left;vertical-align:top}
+article tr:nth-child(even) td{background:#fafbfc}
+.img-missing{margin:20px 0;border:1px dashed #fca5a5;background:#fef2f2;border-radius:10px;
+ padding:16px 20px;text-align:center}
+.img-missing .im-box{font-size:15px;color:#b91c1c;font-weight:600}
+.img-missing figcaption{font-size:12.5px;color:#94a3b8;margin-top:6px;word-break:break-all}
+.math.display{display:block;text-align:center;margin:12px 0;overflow-x:auto}
+.pnav{max-width:980px;margin:-52px auto 60px;padding:0 22px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.pnav a{font-size:13.5px;color:var(--muted);text-decoration:none;background:#fff;border:1px solid var(--line);
+ border-radius:999px;padding:6px 16px}
+.pnav a:hover{color:var(--accent);border-color:var(--accent)}
+.pnav .mid a{color:var(--accent)}
+@media (max-width:760px){article{padding:24px 20px}.crumb,.pnav{padding:0 20px}}
+</style>
+</head>
+<body>
+<nav class="topbar"><div class="wrap">
+ <a class="brand" href="../index.html">⬛ LLM Serving 系列</a>
+ <div class="topnav"><a href="../index.html#diagram">🗺 架构总览</a><a href="../index.html#cards">模块详解</a></div>
+</div></nav>
+<div class="crumb"><a href="../index.html">架构总览</a> / 11 Serving Infra 的下一站：从模型执行器到分布式智能操作系统</div>
+<article>
+ <div class="ahead">
+  <span class="chip">11</span>
+  <h1>Serving Infra 的下一站：从模型执行器到分布式智能操作系统</h1>
+  <div class="meta">LLM Serving 系列 · 原文转载 · 仅作个人学习使用 · 第 12 / 12 篇</div>
+ </div>
+ <details class="toc"><summary>目录（30 条）</summary><ol><li><a href="#1-serving-系统正在管理什么">1. Serving 系统正在管理什么</a><ol class="lv3"><li><a href="#11-从请求响应到智能任务">1.1 从请求响应到智能任务</a></li><li><a href="#12-性能指标需要重新定义">1.2 性能指标需要重新定义</a></li></ol></li><li><a href="#2-计算从手工并行到自动执行计划">2. 计算：从手工并行到自动执行计划</a><ol class="lv3"><li><a href="#21-手写-kernel-的边界">2.1 手写 Kernel 的边界</a></li><li><a href="#22-serving-plan-compiler">2.2 Serving Plan Compiler</a></li></ol></li><li><a href="#3-自动化并行与容量编排">3. 自动化并行与容量编排</a><ol class="lv3"><li><a href="#31-从手工配置到自动并行">3.1 从手工配置到自动并行</a></li><li><a href="#32-自动化并行与-pd-容量均衡">3.2 自动化并行与 PD 容量均衡</a></li><li><a href="#33-拓扑感知的并行规划">3.3 拓扑感知的并行规划</a></li><li><a href="#34-prefilldecode-容量均衡">3.4 Prefill/Decode 容量均衡</a></li><li><a href="#35-moe-与专家资源">3.5 MoE 与专家资源</a></li></ol></li><li><a href="#4-状态从-kv-cache-到-inference-state-plane">4. 状态：从 KV Cache 到 Inference State Plane</a><ol class="lv3"><li><a href="#41-kv-cache-已经成为运行时资源">4.1 KV Cache 已经成为运行时资源</a></li><li><a href="#42-分层-kv-cache">4.2 分层 KV Cache</a></li><li><a href="#43-cache-aware-scheduling">4.3 Cache-aware Scheduling</a></li><li><a href="#44-inference-state-plane">4.4 Inference State Plane</a></li></ol></li><li><a href="#5-调度从单体-engine-到分布式执行">5. 调度：从单体 Engine 到分布式执行</a><ol class="lv3"><li><a href="#51-prefilldecode-解耦">5.1 Prefill/Decode 解耦</a></li><li><a href="#52-kv-cache-transfer">5.2 KV Cache Transfer</a></li><li><a href="#53-请求迁移与状态迁移">5.3 请求迁移与状态迁移</a></li><li><a href="#54-speculative-serving">5.4 Speculative Serving</a></li></ol></li><li><a href="#6-弹性从故障重试到状态恢复">6. 弹性：从故障重试到状态恢复</a><ol class="lv3"><li><a href="#61-推理系统的故障模型">6.1 推理系统的故障模型</a></li><li><a href="#62-goodput-驱动的调度">6.2 Goodput 驱动的调度</a></li><li><a href="#63-异构硬件与能耗感知">6.3 异构硬件与能耗感知</a></li></ol></li><li><a href="#7-vllm-的位置与边界">7. vLLM 的位置与边界</a></li><li><a href="#8-ai-serving-operating-system">8. AI Serving Operating System</a></li><li><a href="#9-serving-engineer-的角色变化">9. Serving Engineer 的角色变化</a></li><li><a href="#10-结语serving-的下一站">10. 结语：Serving 的下一站</a></li></ol></details>
+<p>在真实生产环境中，请求正在变得越来越复杂。一个请求可能包含超长上下文、多轮对话、工具调用、Session 状态，以及图像、音频或视频输入。它不再是一次短暂的函数调用，而可能是一个持续数分钟甚至数小时的分布式任务。</p>
+<p>因此，Serving 系统需要管理的对象已经从单纯的模型计算扩展为：</p>
+<pre><code>计算+ KV Cache+ Session+ 请求状态+ 调度计划+ 故障恢复信息</code></pre>
+<p>Serving Infra 的核心问题也随之改变：</p>
+<pre><code>计算在哪里执行？状态存储在哪里？请求如何被调度、迁移和恢复？</code></pre>
+<p>这三个问题分别对应：</p>
+<ul>
+<li><strong>计算平面</strong>：编译器、并行策略和执行计划；</li>
+<li><strong>状态平面</strong>：KV Cache、Prefix Cache 和 Session；</li>
+<li><strong>调度平面</strong>：请求路由、容量编排、弹性和恢复。</li>
+</ul>
+<p>Serving 系统正在从“模型执行器”演进为“分布式智能操作系统”。</p>
+<h2 id="1-serving-系统正在管理什么">1. Serving 系统正在管理什么</h2>
+<h3 id="11-从请求响应到智能任务">1.1 从请求响应到智能任务</h3>
+<p>早期的推理服务可以抽象为一个简单流程：</p>
+<pre><code>输入请求    ↓模型执行    ↓输出结果</code></pre>
+<p>请求之间相互独立，模型没有显式的长期状态。系统关注的指标也相对简单：</p>
+<ul>
+<li>每秒生成多少 token；</li>
+<li>单请求延迟是多少；</li>
+<li>GPU 利用率是多少；</li>
+<li>系统支持多少并发。</li>
+</ul>
+<p>但 Agent、长上下文和多模态应用改变了这一模型。</p>
+<p>一次任务可能经历：</p>
+<pre><code>接收请求  
+↓Prefill  
+↓生成一部分结果  
+↓调用外部工具  
+↓等待工具返回  
+↓恢复上下文  
+↓继续生成</code></pre>
+<p>在这个过程中，GPU 只是任务使用的资源之一。KV Cache、Session、工具调用结果和调度元数据，同样需要被保存、迁移和恢复。</p>
+<p>Serving 系统管理的对象因此从“请求”扩展为“带状态的任务”。</p>
+<h3 id="12-性能指标需要重新定义">1.2 性能指标需要重新定义</h3>
+<p>吞吐和延迟仍然重要，但已经不足以描述生产系统的真实质量。</p>
+<p>系统还需要关注：</p>
+<ul>
+<li>TTFT：首 token 延迟；</li>
+<li>TPOT：平均输出 token 时间；</li>
+<li>ITL：token 间延迟；</li>
+<li>SLO 满足率；</li>
+<li>请求超时率；</li>
+<li>KV Cache 命中率；</li>
+<li>每百万 token 成本；</li>
+<li>单位能耗；</li>
+<li>故障恢复时间。</li>
+</ul>
+<p>其中，Goodput 比单纯吞吐更接近生产环境的目标：</p>
+<p>Goodput=满足 SLO 的有效请求或 token 数总资源消耗Goodput=总资源消耗满足 SLO 的有效请求或 token 数</p>
+<p>一个系统即使拥有很高的 tokens/s，如果大量请求超时，或者消耗了过多 GPU，也不能称为高效。</p>
+<p>未来的 Serving 系统追求的不是“生成更多 token”，而是 <strong>在满足 SLO 的前提下，以更低的成本完成更多有效任务。</strong></p>
+<h2 id="2-计算从手工并行到自动执行计划">2. 计算：从手工并行到自动执行计划</h2>
+<h3 id="21-手写-kernel-的边界">2.1 手写 Kernel 的边界</h3>
+<p>在深度学习系统发展的早期，性能优化主要依赖专家手写 Kernel：</p>
+<ul>
+<li>CUDA Kernel；</li>
+<li>Triton Kernel；</li>
+<li>融合算子；</li>
+<li>针对特定 GPU 的矩阵乘法；</li>
+<li>针对特定 Attention 结构的实现。</li>
+</ul>
+<p>这种方式依然重要。对于关键路径上的核心算子，手写 Kernel 通常能够提供很高的性能上限。</p>
+<p>但模型和硬件的快速变化，也暴露了这种方式的局限：</p>
+<ul>
+<li>模型结构越来越复杂；</li>
+<li>硬件架构越来越多；</li>
+<li>Prefill 和 Decode 的执行特征不同；</li>
+<li>最优实现依赖 Batch、上下文长度和数据类型；</li>
+<li>Kernel 数量和维护成本持续增加。</li>
+</ul>
+<p>同一个 Attention 算子，在短上下文、长上下文、Prefill、Decode 和不同量化精度下，可能需要完全不同的实现。</p>
+<p>因此，未来的优化对象不会只是单个 Kernel，而是完整的执行计划。</p>
+<h3 id="22-serving-plan-compiler">2.2 Serving Plan Compiler</h3>
+<p>未来的 Serving 编译器可以被抽象为 <strong>Serving Plan Compiler</strong>。</p>
+<p>它的输入包括：</p>
+<pre><code>模型结构+ 输入输出特征+ 硬件拓扑+ 显存容量+ 网络能力+ 并行策略+ KV Cache 策略+ SLO 目标+ 负载预测</code></pre>
+<p>输出则是一套完整的执行计划：</p>
+<pre><code>算子实现+ 融合方式+ 张量布局+ 内存分配+ 并行方案+ Batch 策略+ Cache 策略+ 通信路径+ 调度参数</code></pre>
+<p>编译器的边界因此逐步扩大：</p>
+<pre><code>Kernel Compiler  
+↓Graph Compiler  
+↓Model Compiler  
+↓Serving Plan Compiler</code></pre>
+<p>这并不意味着手写 Kernel 会消失。更现实的方向是编译器和专家插件协同工作：</p>
+<ul>
+<li>编译器负责搜索和组合；</li>
+<li>专家 Kernel 作为高性能插件；</li>
+<li>Runtime 根据负载选择不同实现；</li>
+<li>在线 Profiling 持续修正执行计划；</li>
+<li>执行计划与硬件拓扑绑定。</li>
+</ul>
+<p>未来，一个模型可能不再只有一份固定的执行代码，而是拥有多套计划：</p>
+<pre><code>短请求计划长上下文计划高并发 Decode 计划低延迟计划高吞吐计划低成本计划</code></pre>
+<p>Runtime 根据请求特征和集群状态选择合适的计划。</p>
+<h2 id="3-自动化并行与容量编排">3. 自动化并行与容量编排</h2>
+<p>自动化并行是 Serving Infra 下一阶段最重要的演进方向之一。</p>
+<p>它解决的问题不是“如何启动更多副本”，而是：<strong>如何根据模型、硬件拓扑、请求负载和 SLO，自动生成合适的分布式执行方案。</strong></p>
+<h3 id="31-从手工配置到自动并行">3.1 从手工配置到自动并行</h3>
+<p>当前部署大模型，通常需要人工配置：</p>
+<ul>
+<li>Tensor Parallel；</li>
+<li>Pipeline Parallel；</li>
+<li>Data Parallel；</li>
+<li>Expert Parallel；</li>
+<li>Context Parallel；</li>
+<li>Prefill 和 Decode 的 Worker 数量；</li>
+<li>KV Cache 的传输路径；</li>
+<li>Batch 和调度参数。</li>
+</ul>
+<p>这些参数并不是相互独立的。</p>
+<p>例如：</p>
+<ul>
+<li>增大 TP 可以降低单卡显存压力，但会增加通信；</li>
+<li>PP 可以扩展模型规模，但可能引入流水线气泡；</li>
+<li>DP 可以增加吞吐，但需要复制模型和 Cache；</li>
+<li>EP 可以减少专家计算，但对 All-to-All 网络提出更高要求；</li>
+<li>CP 可以支持更长上下文，但会增加状态交换。</li>
+</ul>
+<p>并行策略本质上是一个联合优化问题：</p>
+<p>P∗=arg⁡min⁡P(Ccompute+Cmemory+Ccommunication)<em>P</em>∗=arg<em>P</em>min(<em>C</em>compute+<em>C</em>memory+<em>C</em>communication)</p>
+<p>同时满足：</p>
+<p>TTFT(P)≤SLOprefillTTFT(<em>P</em>)≤<em>S<strong>L</strong>O</em>prefill</p>
+<p>TPOT(P)≤SLOdecodeTPOT(<em>P</em>)≤<em>S<strong>L</strong>O</em>decode</p>
+<p>其中，P<em>P</em> 代表完整的并行与部署计划。</p>
+<h3 id="32-自动化并行与-pd-容量均衡">3.2 自动化并行与 PD 容量均衡</h3>
+<p>自动化并行和 Prefill/Decode 容量均衡处于不同层次。</p>
+<pre><code>模型  │  ▼自动化并行规划  │
+├── TP / PP / DP / EP / CP
+├── GPU 映射
+└── 通信计划  │  ▼Worker 执行单元  │
+├── Prefill Worker × N
+└── Decode Worker × M          │  
+▼    PD 容量编排</code></pre>
+<p><strong>自动化并行策略生成</strong>解决的是：<strong>一个模型或一个 Worker 内部，如何切分计算和资源？</strong></p>
+<p>例如：</p>
+<pre><code>TP = 4PP = 2EP = 4</code></pre>
+<p><strong>PD 容量均衡</strong>解决的是：<strong>整个集群中，Prefill 和 Decode 分别需要部署多少资源？</strong></p>
+<p>例如：</p>
+<pre><code>Prefill：8 个 WorkerDecode：24 个 Worker</code></pre>
+<p>前者决定 Worker 内部如何使用 GPU，后者决定集群中 Prefill 与 Decode 的资源比例。</p>
+<h3 id="33-拓扑感知的并行规划">3.3 拓扑感知的并行规划</h3>
+<p>自动化并行不能只看 GPU 数量，还必须理解硬件拓扑：</p>
+<pre><code>GPU 拓扑+ NVLink+ PCIe 层级+ NUMA 结构+ RDMA 路径+ 交换机带宽+ 故障域</code></pre>
+<p>不同并行策略对拓扑的依赖不同：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">并行方式</th>
+<th style="text-align: left;">主要依赖</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">TP</td>
+<td style="text-align: left;">低延迟、高带宽互联</td>
+</tr>
+<tr>
+<td style="text-align: left;">PP</td>
+<td style="text-align: left;">Stage 间通信和负载均衡</td>
+</tr>
+<tr>
+<td style="text-align: left;">DP</td>
+<td style="text-align: left;">跨节点扩展能力</td>
+</tr>
+<tr>
+<td style="text-align: left;">EP</td>
+<td style="text-align: left;">All-to-All 网络能力</td>
+</tr>
+<tr>
+<td style="text-align: left;">CP</td>
+<td style="text-align: left;">上下文相关状态交换</td>
+</tr>
+<tr>
+<td style="text-align: left;">PD 解耦</td>
+<td style="text-align: left;">KV Cache 传输路径</td>
+</tr>
+</tbody>
+</table>
+<p>一个拓扑感知的规划器需要回答：</p>
+<ul>
+<li>哪些 GPU 应当放入同一个 TP Group？</li>
+<li>哪些 Pipeline Stage 可以跨节点部署？</li>
+<li>哪些专家需要复制？</li>
+<li>KV Cache 应该通过哪条路径传输？</li>
+<li>如何避免多个 All-to-All 共享同一条拥塞链路？</li>
+</ul>
+<p>这是一种 <strong>Topology-aware Parallelism Planning</strong>。</p>
+<h3 id="34-prefilldecode-容量均衡">3.4 Prefill/Decode 容量均衡</h3>
+<p>Prefill 和 Decode 的资源特征不同。</p>
+<p>Prefill 通常具有更高的计算密度，主要受到输入 token 数和上下文长度影响；Decode 则更容易受到活跃请求数、KV Cache 容量、显存带宽和输出长度影响。</p>
+<p>可以用两个简化变量描述负载：</p>
+<p>λprefill=输入 token 到达率<em>λ</em>prefill=输入 token 到达率</p>
+<p>λdecode=活跃请求数×平均输出 token 速率<em>λ</em>decode=活跃请求数×平均输出 token 速率</p>
+<p>当输入长度突然增加时，Prefill 可能成为瓶颈；当输出变长或并发提高时，Decode 可能成为瓶颈。</p>
+<p>调度器需要持续观察：</p>
+<pre><code>Prefill 队列长度Decode 队列长度TTFTTPOT活跃序列数KV Cache 使用率KV Cache 传输带宽GPU 利用率输入输出长度分布</code></pre>
+<p>然后动态调整：</p>
+<pre><code>Prefill 副本数Decode 副本数GPU 配额请求路由批处理策略KV Cache 位置</code></pre>
+<p>这不再是普通的弹性伸缩，而是<strong>面向推理阶段的容量编排。</strong></p>
+<h3 id="35-moe-与专家资源">3.5 MoE 与专家资源</h3>
+<p>MoE 模型进一步放大了自动并行的复杂度。</p>
+<p>不同时间段、不同用户群体和不同任务类型，可能产生完全不同的专家路由分布，从而导致：</p>
+<ul>
+<li>某些专家成为热点；</li>
+<li>All-to-All 通信拥塞；</li>
+<li>GPU 之间负载不均；</li>
+<li>专家容量限制；</li>
+<li>静态专家映射失效。</li>
+</ul>
+<p>未来的 Serving 系统可能需要支持：</p>
+<ul>
+<li>Expert-aware Routing；</li>
+<li>热门专家动态复制；</li>
+<li>专家与 GPU 的动态映射；</li>
+<li>专家负载预测；</li>
+<li>通信与计算重叠；</li>
+<li>基于运行时流量调整 EP。</li>
+</ul>
+<p>并行策略因此不再只是按照参数切分模型，也需要根据真实 token 流量编排计算资源。</p>
+<h2 id="4-状态从-kv-cache-到-inference-state-plane">4. 状态：从 KV Cache 到 Inference State Plane</h2>
+<h3 id="41-kv-cache-已经成为运行时资源">4.1 KV Cache 已经成为运行时资源</h3>
+<p>KV Cache 最初只是一次请求生命周期内的临时数据。</p>
+<p>但随着上下文长度和 Session 生命周期增加，KV Cache 已经具备了明显的状态属性：</p>
+<ul>
+<li>占用大量显存；</li>
+<li>影响请求调度；</li>
+<li>可以被多个请求复用；</li>
+<li>可能跨 Worker 迁移；</li>
+<li>可能需要持久化；</li>
+<li>决定请求能否快速恢复；</li>
+<li>影响 PD 解耦的通信成本。</li>
+</ul>
+<p>因此，KV Cache 不应再只是模型实例内部的实现细节，而应成为 Serving 系统的一等资源。</p>
+<h3 id="42-分层-kv-cache">4.2 分层 KV Cache</h3>
+<p>单一的 GPU HBM 很难同时满足超长上下文和长生命周期 Session 的需求。</p>
+<p>未来的 KV Cache 可能采用分层存储：</p>
+<pre><code>GPU HBM  
+↓CPU 内存  
+↓本地 SSD  
+↓远程内存或分布式缓存</code></pre>
+<p>不同层级具有不同的容量、带宽和访问延迟：</p>
+<ul>
+<li>HBM：速度快，但容量有限；</li>
+<li>CPU 内存：容量更大，但访问延迟更高；</li>
+<li>本地 SSD：容量大，但随机访问较慢；</li>
+<li>远程内存：便于共享和迁移，但依赖网络。</li>
+</ul>
+<p>调度器需要决定：</p>
+<ul>
+<li>哪些 KV 保留在 HBM；</li>
+<li>哪些 KV 可以 Offload；</li>
+<li>哪些 KV 需要压缩；</li>
+<li>哪些 KV 可以重计算；</li>
+<li>哪些 KV 需要复制；</li>
+<li>哪些 KV 可以淘汰。</li>
+</ul>
+<p>对于短上下文，重新计算可能比跨节点传输更便宜；对于超长上下文，传输则可能明显优于重新 Prefill。</p>
+<p>“传输还是重算”将成为运行时决策。</p>
+<h3 id="43-cache-aware-scheduling">4.3 Cache-aware Scheduling</h3>
+<p>当 KV Cache 成为共享状态后，请求调度就不能只考虑哪个 Worker 当前最空闲。</p>
+<p>调度器还需要考虑：</p>
+<ul>
+<li>Worker 当前负载；</li>
+<li>Prefix Cache 命中情况；</li>
+<li>KV Cache 所在位置；</li>
+<li>请求迁移成本；</li>
+<li>网络拓扑；</li>
+<li>Session 粘性；</li>
+<li>Cache 的预期复用价值。</li>
+</ul>
+<p>一个 Worker 即使当前负载略高，但已经拥有目标请求的大部分 Prefix Cache，将请求发送到该 Worker 仍可能更优。</p>
+<p>调度目标因此从：</p>
+<pre><code>选择最空闲的 Worker</code></pre>
+<p>演进为：</p>
+<pre><code>选择计算、状态和网络综合成本最低的 Worker</code></pre>
+<p>这就是 <strong>Cache-aware Scheduling</strong>，更进一步，也可以称为 <strong>Joint Compute–State Scheduling</strong>。</p>
+<h3 id="44-inference-state-plane">4.4 Inference State Plane</h3>
+<p>除了 KV Cache，未来的 Serving 系统还需要管理：</p>
+<ul>
+<li>Prefix Cache；</li>
+<li>对话历史；</li>
+<li>Agent Session；</li>
+<li>工具调用结果；</li>
+<li>多模态中间表示；</li>
+<li>投机解码状态；</li>
+<li>模型版本和执行计划。</li>
+</ul>
+<p>这些对象可以统一抽象为 <strong>Inference State Plane</strong>，即推理状态平面。</p>
+<p>状态平面至少需要提供：</p>
+<ul>
+<li>状态寻址；</li>
+<li>生命周期管理；</li>
+<li>状态放置；</li>
+<li>状态迁移；</li>
+<li>状态复制；</li>
+<li>状态版本管理；</li>
+<li>状态失效；</li>
+<li>状态恢复；</li>
+<li>访问权限；</li>
+<li>成本控制。</li>
+</ul>
+<p>模型执行器只需要声明：</p>
+<pre><code>需要哪些状态产生哪些状态状态生命周期多长状态是否允许迁移和复用</code></pre>
+<p>状态平面则负责：</p>
+<pre><code>状态放在哪里如何传输何时淘汰是否压缩是否复制如何恢复</code></pre>
+<p>这将改变 Serving Runtime 的边界：Runtime 不再独占所有状态，而是成为状态平面的一个使用者。</p>
+<h2 id="5-调度从单体-engine-到分布式执行">5. 调度：从单体 Engine 到分布式执行</h2>
+<h3 id="51-prefilldecode-解耦">5.1 Prefill/Decode 解耦</h3>
+<p>传统 Serving Engine 通常将请求接收、Prefill、Decode、KV Cache 管理和结果输出集中在一个进程或一个 Worker 集群中。</p>
+<p>这种方式简单直接，但存在几个限制：</p>
+<ul>
+<li>Prefill 和 Decode 难以独立扩展；</li>
+<li>长 Prefill 容易影响 Decode；</li>
+<li>资源无法按阶段精细配置；</li>
+<li>KV Cache 生命周期与 Worker 强绑定；</li>
+<li>故障和迁移成本较高。</li>
+</ul>
+<p>Disaggregated Serving 将不同阶段拆分：</p>
+<pre><code>请求入口  
+↓Prefill 集群  
+↓KV Cache Transfer  
+↓Decode 集群  
+↓流式输出</code></pre>
+<p>其优势包括：</p>
+<ul>
+<li>Prefill 和 Decode 独立扩缩容；</li>
+<li>两个阶段可以选择不同并行策略；</li>
+<li>长短请求可以隔离；</li>
+<li>资源利用率更容易优化；</li>
+<li>阶段级故障恢复更加清晰。</li>
+</ul>
+<p>但它也引入了新的系统问题：</p>
+<ul>
+<li>KV Cache 如何传输；</li>
+<li>Decode Worker 如何选择；</li>
+<li>网络带宽是否成为瓶颈；</li>
+<li>请求和状态如何绑定；</li>
+<li>失败后重新计算还是恢复状态；</li>
+<li>如何维护流式输出顺序。</li>
+</ul>
+<p>PD 解耦不是简单地拆分两个服务，而是一次执行模型的重构。</p>
+<h3 id="52-kv-cache-transfer">5.2 KV Cache Transfer</h3>
+<p>KV Cache Transfer 的成本取决于：</p>
+<ul>
+<li>上下文长度；</li>
+<li>KV 头数量；</li>
+<li>数据精度；</li>
+<li>传输协议；</li>
+<li>网络拓扑；</li>
+<li>是否需要重新布局；</li>
+<li>是否支持压缩；</li>
+<li>是否可以与计算重叠。</li>
+</ul>
+<p>可能的传输路径包括：</p>
+<pre><code>GPU → GPUGPU → CPU → GPUGPU → RDMA → GPUGPU → 远程缓存 → GPU</code></pre>
+<p>系统需要联合决定：</p>
+<pre><code>Prefill 在哪里执行？KV Cache 放在哪里？Decode 在哪里执行？使用哪条传输路径？是否值得传输，还是直接重算？</code></pre>
+<p>这使得 KV Cache Transfer 不再是一个底层通信细节，而成为全局调度的一部分。</p>
+<h3 id="53-请求迁移与状态迁移">5.3 请求迁移与状态迁移</h3>
+<p>在单体架构中，请求通常与 Worker 强绑定。一旦 Worker 过载或发生故障，请求迁移往往意味着重新开始计算。</p>
+<p>在分布式 Serving 中，理想的迁移对象应当包括：</p>
+<pre><code>请求+ KV Cache+ Session 状态+ 调度元数据</code></pre>
+<p>系统还需要区分不同状态的恢复策略：</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">状态类型</th>
+<th style="text-align: left;">可能的恢复策略</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">短期 KV Cache</td>
+<td style="text-align: left;">丢弃并重算</td>
+</tr>
+<tr>
+<td style="text-align: left;">长上下文 KV Cache</td>
+<td style="text-align: left;">分层持久化或异步复制</td>
+</tr>
+<tr>
+<td style="text-align: left;">Agent Session</td>
+<td style="text-align: left;">外部状态存储</td>
+</tr>
+<tr>
+<td style="text-align: left;">工具调用结果</td>
+<td style="text-align: left;">事件日志或结果缓存</td>
+</tr>
+<tr>
+<td style="text-align: left;">执行元数据</td>
+<td style="text-align: left;">控制面持久化</td>
+</tr>
+<tr>
+<td style="text-align: left;">流式输出进度</td>
+<td style="text-align: left;">检查点或幂等重放</td>
+</tr>
+</tbody>
+</table>
+<p>只有当状态可以独立于计算实例存在时，请求迁移才真正可行。</p>
+<h3 id="54-speculative-serving">5.4 Speculative Serving</h3>
+<p>投机解码通常被视为模型优化，但在大规模部署中，它也会成为基础设施能力。</p>
+<pre><code>Draft Model  
+↓生成候选 token  
+↓Target Model  
+↓验证候选 token  
+↓接受或拒绝</code></pre>
+<p>Serving 系统需要决定：</p>
+<ul>
+<li>Draft Model 和 Target Model 的资源比例；</li>
+<li>两者是否共置；</li>
+<li>草稿 token 如何传输；</li>
+<li>不同请求的投机深度；</li>
+<li>接受率下降时如何调整；</li>
+<li>验证失败后的回退策略；</li>
+<li>多模型版本如何兼容。</li>
+</ul>
+<p>因此，投机解码不应只是模型代码中的一个开关，而可以被抽象为：<strong>由 Serving 系统管理的多模型协同执行计划。</strong></p>
+<h2 id="6-弹性从故障重试到状态恢复">6. 弹性：从故障重试到状态恢复</h2>
+<h3 id="61-推理系统的故障模型">6.1 推理系统的故障模型</h3>
+<p>传统无状态服务发生故障时，通常只需要重新发送请求。</p>
+<p>但对于长上下文和持久化 Session，故障可能造成：</p>
+<ul>
+<li>大量 KV Cache 丢失；</li>
+<li>Agent 工作流中断；</li>
+<li>多模态中间结果失效；</li>
+<li>已完成的 Prefill 被迫重算；</li>
+<li>长请求重新排队；</li>
+<li>输出重复或状态不一致。</li>
+</ul>
+<p>未来的恢复粒度需要从请求级扩展到：</p>
+<pre><code>请求级Session 级KV Block 级Pipeline Stage 级Worker 级集群级</code></pre>
+<p>并非所有状态都需要强一致复制。不同状态可以采用不同策略：</p>
+<ul>
+<li>短期状态直接丢弃；</li>
+<li>长期状态异步复制；</li>
+<li>Agent 状态外置存储；</li>
+<li>工具结果使用事件日志；</li>
+<li>可重算状态采用检查点或重放。</li>
+</ul>
+<p>核心目标不是“永不失败”，而是：<strong>故障发生后，以尽可能低的代价恢复有效执行。</strong></p>
+<h3 id="62-goodput-驱动的调度">6.2 Goodput 驱动的调度</h3>
+<p>GPU 利用率高，并不代表服务质量高。</p>
+<p>例如：</p>
+<ul>
+<li>GPU 正在处理大量即将超时的请求；</li>
+<li>超长请求长期占用批次；</li>
+<li>KV Cache 传输阻塞了计算；</li>
+<li>高吞吐策略导致尾延迟恶化。</li>
+</ul>
+<p>更合理的调度目标应当同时考虑：</p>
+<ul>
+<li>请求优先级；</li>
+<li>SLO；</li>
+<li>资源成本；</li>
+<li>能耗；</li>
+<li>故障风险；</li>
+<li>Cache 复用收益。</li>
+</ul>
+<p>可以将目标表示为：</p>
+<p>max⁡(Goodput−α⋅Cost−β⋅SLO Violation−γ⋅Energy)max(Goodput−<em>α</em>⋅Cost−<em>β</em>⋅SLO Violation−<em>γ</em>⋅Energy)</p>
+<p>这意味着 Serving 调度器会从队列管理器演进为多目标优化系统。</p>
+<h3 id="63-异构硬件与能耗感知">6.3 异构硬件与能耗感知</h3>
+<p>未来的推理集群不会只包含一种 GPU，还可能同时使用：</p>
+<ul>
+<li>不同代际和显存容量的 GPU；</li>
+<li>CPU；</li>
+<li>专用推理加速器；</li>
+<li>高带宽内存设备；</li>
+<li>具备不同网络能力的节点。</li>
+</ul>
+<p>不同硬件适合不同任务：</p>
+<ul>
+<li>大显存设备适合长上下文；</li>
+<li>高算力设备适合 Prefill；</li>
+<li>高显存带宽设备适合 Decode；</li>
+<li>低成本设备适合低优先级请求；</li>
+<li>高速互联节点适合 TP 或 EP；</li>
+<li>高网络带宽节点适合 KV Cache Transfer。</li>
+</ul>
+<p>请求路由需要综合考虑：</p>
+<pre><code>模型兼容性+ 当前负载+ 显存容量+ 网络拓扑+ 能耗+ 成本+ SLO</code></pre>
+<p>资源调度的目标也将从“把请求放到空闲 GPU”演进为：<strong>把合适的请求放到最适合的硬件上。</strong></p>
+<h2 id="7-vllm-的位置与边界">7. vLLM 的位置与边界</h2>
+<p>vLLM 代表了现代 LLM Serving Runtime 的重要发展方向。</p>
+<p>通过 PagedAttention、连续批处理、KV Cache 管理和高效调度，vLLM 解决了传统推理系统中的许多关键问题：</p>
+<ul>
+<li>KV Cache 内存碎片；</li>
+<li>静态 Batch 的低利用率；</li>
+<li>请求长度差异带来的资源浪费；</li>
+<li>Decode 阶段的动态调度；</li>
+<li>多请求并发下的显存管理。</li>
+</ul>
+<p>从这个意义上说，vLLM 已经不只是一个模型执行库，而是一个具备明显 Runtime 特征的推理系统。</p>
+<p>但当系统进一步面对以下场景时，问题会超出单个 Engine 的边界：</p>
+<ul>
+<li>超大规模跨节点部署；</li>
+<li>Prefill/Decode 物理解耦；</li>
+<li>KV Cache 跨集群迁移；</li>
+<li>多模型协同；</li>
+<li>Agent Session 持久化；</li>
+<li>多模态异步流水线；</li>
+<li>自动并行策略搜索；</li>
+<li>多租户 SLO 调度；</li>
+<li>跨硬件资源编排；</li>
+<li>故障域级别的状态恢复。</li>
+</ul>
+<p>因此，vLLM 的下一步不只是继续增加更多高性能 Kernel，也可能是向更完整的 Serving Runtime 和分布式执行平台扩展。</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: left;">问题</th>
+<th style="text-align: left;">vLLM 的优势</th>
+<th style="text-align: left;">下一阶段</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: left;">KV Cache</td>
+<td style="text-align: left;">PagedAttention、Block 管理</td>
+<td style="text-align: left;">跨 Worker、跨节点状态平面</td>
+</tr>
+<tr>
+<td style="text-align: left;">动态批处理</td>
+<td style="text-align: left;">连续批处理、请求调度</td>
+<td style="text-align: left;">全局 SLO 调度</td>
+</tr>
+<tr>
+<td style="text-align: left;">单模型执行</td>
+<td style="text-align: left;">高效 Runtime</td>
+<td style="text-align: left;">多阶段、多模型协同</td>
+</tr>
+<tr>
+<td style="text-align: left;">GPU 利用率</td>
+<td style="text-align: left;">优化局部执行效率</td>
+<td style="text-align: left;">Goodput、成本和能耗联合优化</td>
+</tr>
+<tr>
+<td style="text-align: left;">请求处理</td>
+<td style="text-align: left;">Engine 内部调度</td>
+<td style="text-align: left;">请求迁移与 Session 恢复</td>
+</tr>
+</tbody>
+</table>
+<p>一个单体 Engine 可以很好地管理局部执行效率，却很难独立解决全局状态、跨阶段调度和集群级资源编排。</p>
+<p>未来的 Serving 系统更可能由多个层次共同构成：</p>
+<pre><code>模型与编译层  
+↓Serving Runtime  
+↓Inference State Plane  
+↓分布式调度与编排层  
+↓硬件与数据中心基础设施</code></pre>
+<p>vLLM 可以成为其中重要的执行层，但完整的 AI Serving Operating System 需要更多组件共同完成。</p>
+<h2 id="8-ai-serving-operating-system">8. AI Serving Operating System</h2>
+<p>将前面的变化放在一起，可以得到一个未来架构：</p>
+<pre><code>┌──────────────────────────────────────┐│       Agent / Application Layer      
+│├──────────────────────────────────────┤│       Request &amp; Workflow Layer       
+│├──────────────────────────────────────┤│       Global Scheduler / SLO         
+│├──────────────────────────────────────┤│       Inference State Plane          
+│├──────────────────────────────────────┤│       Serving Plan Compiler          
+│├───────────────┬──────────────┬───────┤│ Prefill Pool  │ Decode Pool  │ Tools 
+│├───────────────┴──────────────┴───────┤│ GPU / CPU / Memory / Network / SSD   
+│└──────────────────────────────────────┘</code></pre>
+<p>每一层承担不同职责：</p>
+<ul>
+<li><strong>应用与 Agent 层</strong>：对话、工具调用、多模态任务和多模型协同；</li>
+<li><strong>工作流层</strong>：请求拆分、任务依赖和阶段转换；</li>
+<li><strong>全局调度层</strong>：请求路由、优先级、SLO 和容量编排；</li>
+<li><strong>状态平面</strong>：KV Cache、Prefix Cache、Session 和中间状态；</li>
+<li><strong>编译层</strong>：算子、内存、通信和并行计划；</li>
+<li><strong>执行层</strong>：Prefill、Decode、Encoder、Draft Model 和 Target Model；</li>
+<li><strong>资源层</strong>：GPU、CPU、内存、网络和存储。</li>
+</ul>
+<p>在这种架构中，Serving 系统的核心抽象不再是：</p>
+<pre><code>一个模型 + 一组 GPU</code></pre>
+<p>而是：</p>
+<pre><code>一组带状态的智能任务+ 一套动态执行计划+ 一个可迁移、可恢复的分布式运行时</code></pre>
+<h2 id="9-serving-engineer-的角色变化">9. Serving Engineer 的角色变化</h2>
+<p>过去，Serving Engineer 主要关注：</p>
+<ul>
+<li>CUDA 和 Kernel；</li>
+<li>显存；</li>
+<li>Batch；</li>
+<li>请求队列；</li>
+<li>模型加载；</li>
+<li>单机性能。</li>
+</ul>
+<p>未来则需要同时理解：</p>
+<ul>
+<li>编译器；</li>
+<li>分布式系统；</li>
+<li>操作系统；</li>
+<li>网络与 RDMA；</li>
+<li>存储系统；</li>
+<li>调度理论；</li>
+<li>资源编排；</li>
+<li>SLO 与成本模型；</li>
+<li>Agent 状态机；</li>
+<li>多模态流水线；</li>
+<li>故障恢复；</li>
+<li>硬件拓扑。</li>
+</ul>
+<p>这并不意味着每个人都必须成为所有领域的专家，而是 Serving 系统本身已经不再允许这些领域彼此割裂。</p>
+<p>一个高性能 Kernel，如果无法适应请求调度，可能无法带来有效收益；一个优秀的调度器，如果不了解 KV Cache 位置，可能造成大量网络浪费；一个高效的集群编排器，如果不了解模型并行策略，也可能将资源放在错误的位置。</p>
+<p>未来的 Serving Engineer 需要具备系统级视野：</p>
+<blockquote>
+<p>不仅要知道模型如何计算，还要知道计算如何被编排、状态如何被管理，以及故障发生后系统如何继续工作。</p>
+</blockquote>
+<h2 id="10-结语serving-的下一站">10. 结语：Serving 的下一站</h2>
+<p>LLM Serving 的演进，不只是让模型生成 token 更快。</p>
+<p>它正在完成四个转变：</p>
+<pre><code>手工配置        → 自动执行计划本地缓存        → 分布式状态平面单体推理        → 多阶段分布式执行GPU 利用率       → Goodput、SLO 与成本联合优化</code></pre>
+<p>未来的 Serving 系统需要同时管理：</p>
+<ul>
+<li>可编排的计算；</li>
+<li>可迁移的状态；</li>
+<li>可恢复的请求；</li>
+<li>异构的资源；</li>
+<li>动态生成的执行计划。</li>
+</ul>
+<p>vLLM 解决了高性能模型执行中的许多关键问题，但它代表的更多是 Runtime 层，而不是完整的 AI Serving Operating System。</p>
+<p>下一阶段的核心，不再是：<strong>如何在一张 GPU 上更快地运行模型？</strong></p>
+<p>而是：<strong>如何让计算、状态和调度协同工作，使整个智能系统能够在复杂环境中持续、低成本、可恢复地完成任务？</strong></p>
+<p>这就是 Serving Infra 的下一站</p>
+
+
+</article>
+<div class="pnav">
+ <span><a href="10-PD 分离：从资源混部走向计算解耦.html">← 上一篇 10</a></span><span class="mid"><a href="../index.html">⤴ 返回架构总览</a></span><span><span></span></span>
+</div>
+</body>
+</html>

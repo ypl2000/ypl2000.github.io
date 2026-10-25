@@ -32,6 +32,15 @@ ARTICLES = [
         "date": "2026-10-19",
         "summary": "从生物学研究的核心业务难题出发，梳理 AI 进入生命科学的发展脉络，解析 scVI、Enformer、HyenaDNA、EVO、ESM、AlphaFold 2/3、RFdiffusion 等典型模型的技术思路。",
     },
+    {
+        "out": "llm-serving/index.html",
+        "title": "LLM Serving 系列架构总览",
+        "series": "LLM Serving 笔记",
+        "date": "2026-10-25",
+        "summary": "个人学习笔记（原文转载）：四层架构知识地图梳理 LLM 推理框架全流程——调度、KV Cache、GPU 执行、多卡扩展、模型适配、PD 分离，每层附重难点与相关知识，点击模块跳转详解与原文。",
+        "external": True,
+        "more": "查看知识地图 →",
+    },
 ]
 
 ROOT = Path(__file__).parent
@@ -126,7 +135,7 @@ def build_index() -> None:
       <div class="card-top"><span class="badge">{a['series']}</span><span class="date">{a['date']}</span></div>
       <div class="card-title">{a['title']}</div>
       <div class="card-summary">{a['summary']}</div>
-      <div class="card-more">阅读全文 →</div>
+      <div class="card-more">{a.get('more', '阅读全文')} →</div>
     </a>"""
         for a in ARTICLES
     )
@@ -226,6 +235,8 @@ def main() -> None:
     build_assets()
     build_index()
     for cfg in ARTICLES:
+        if cfg.get("external"):
+            continue  # 外部页面（如 llm-serving/）由各自脚本生成
         build_article(cfg)
     style = ASSETS / "style.css"
     style.write_text(STYLE, encoding="utf-8")
