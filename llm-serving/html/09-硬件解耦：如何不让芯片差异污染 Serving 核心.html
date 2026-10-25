@@ -139,7 +139,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 └── 只关心模型层如何执行硬件平台层
 └── 负责设备、算子、通信、数据类型和内存实现</code></pre>
 <p>理想的依赖关系如下：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094940913。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094940913.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094940913。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>上层只需要提出类似的问题：</p>
 <pre><code>当前设备是什么类型？支持哪些数据类型？支持 FP8 或其他量化格式吗？使用哪个 Attention Backend？集合通信由哪个实现负责？需要加载哪些平台扩展？</code></pre>
 <p>它不应该关心：</p>
@@ -198,7 +198,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <p><strong>Platform 是设备能力和运行时事实的来源；Attention Backend 是其中一个重要的动态选择器；大量其他 Kernel、通信组件和平台扩展则可以由 Platform 直接提供。</strong></p>
 </blockquote>
 <p>整体关系更接近下面这样：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094826570。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094826570.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094826570。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <h3 id="31-路径一attention-backend-选择">3.1 路径一：Attention Backend 选择</h3>
 <p>Attention 是 vLLM 中最重要的动态后端选择场景之一。</p>
 <p>典型入口可以抽象为：</p>
@@ -283,7 +283,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 </blockquote>
 <p>以昇腾为例，适配包可以独立维护在 <code>vllm-ascend</code> 中，而不是把所有 CANN 相关代码直接放入 vLLM 主仓库。</p>
 <p>从架构上看：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094705359。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094705359.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094705359。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>主仓库和插件包之间大致是这样的分工：</p>
 <table>
 <thead>
@@ -365,7 +365,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <li>如何让 vLLM 在启动时加载正确的插件。</li>
 </ul>
 <p>启动阶段的逻辑可以抽象为：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094621211。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094621211.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094621211。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>这里有一个重要的工程事实：</p>
 <blockquote>
 <p><strong>平台注册只解决“让系统看见这个硬件”，不代表底层算子、通信和模型执行都已经可用。</strong></p>
@@ -449,7 +449,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <li>多卡场景下的内存隔离。</li>
 </ul>
 <p>理想的分层是：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094555674。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094555674.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094555674。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>关键点在于：</p>
 <blockquote>
 <p><strong>KV Cache Manager 不应该知道 Ascend 的内存 API；Ascend Worker 也不应该重新实现一套 KV Cache 调度逻辑。</strong></p>
@@ -584,7 +584,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <p>一个成熟的 OOT 插件，实际上是一个独立的适配层和发行生态。</p>
 <h2 id="7-一次请求在异构硬件上的执行路径">7. 一次请求在异构硬件上的执行路径</h2>
 <p>把前面的模块组合起来，可以得到一个更完整的请求执行路径：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094526588。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094526588.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094526588。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>在这条路径中：</p>
 <ul>
 <li>API 层不关心设备；</li>
@@ -649,7 +649,7 @@ KV Cache 正确
 <p><strong>Out-of-Tree 让硬件适配可以独立演进，但前提是主仓库提供稳定的扩展契约。</strong></p>
 </blockquote>
 <p>因此，vLLM 的硬件解耦并不是简单地增加几个平台类，而是建立了多层边界：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094441495。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260928094441495.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260928094441495。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>最终，硬件差异应该停留在最底层：</p>
 <pre><code>芯片差异  ↓运行时差异  ↓平台实现差异  ↓Backend / Worker / Kernel 差异  ↓Serving 核心保持稳定</code></pre>
 <p>这正是一个高性能推理框架面对异构硬件时最重要的架构能力：</p>

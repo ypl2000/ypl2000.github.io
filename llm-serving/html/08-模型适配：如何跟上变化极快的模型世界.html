@@ -247,7 +247,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <p>vLLM 应对这一问题的方式，并不是建立一个包含所有模型逻辑的超大基类，而是根据不同问题的变化边界，建立一组相互衔接但职责相对独立的抽象：</p>
 <pre><code>配置语义  → 模型发现  → 能力契约  → 模型实例化与权重装配  → 运行时调度  → 执行编排  → Attention / Kernel 执行</code></pre>
 <p>从整体上看，vLLM 的模型接入与运行时执行可以抽象为下面这条链路：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923181239589。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923181239589.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923181239589。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>这张图可以分成两个相对独立的部分：</p>
 <ul>
 <li><strong>模型接入链路</strong>：<code>ModelConfig → ModelRegistry → ModelLoader → Loaded model</code>；</li>
@@ -270,7 +270,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <li>模型是否具备某些运行能力或限制。</li>
 </ul>
 <p>可以将这一过程表示为：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923151113740。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923151113740.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923151113740。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p><code>ModelConfig</code> 的价值不在于简单保存参数，而在于完成一次<strong>语义收敛</strong>：</p>
 <pre><code>外部配置、命令行参数、模型元数据  
 ↓        统一的执行意图</code></pre>
@@ -301,7 +301,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <li>auto 模式下的回退策略。</li>
 </ul>
 <p>其基本数据流可以表示为：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923151057007。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923151057007.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923151057007。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>在工程上，模型检查和模型解析通常可以分成两个阶段：</p>
 <ul>
 <li><code>inspect_model_cls</code>：在模型真正实例化之前，检查模型能力、接口或元信息；</li>
@@ -350,7 +350,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <li>量化、LoRA 等扩展能力。</li>
 </ul>
 <p>概念上可以表示为：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150959916。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150959916.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150959916。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>这种设计带来两个主要好处。</p>
 <p><strong>第一，兼容已有实现。</strong></p>
 <p>模型不必为了接入 vLLM 而重构成某个复杂的继承体系，只要实现运行时真正需要的能力即可。</p>
@@ -368,7 +368,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <p>vLLM 将模型初始化和权重装配集中到 loader 相关抽象中。概念上的加载流程如下：</p>
 <pre><code>解析模型类  → 初始化模型结构  → 读取 checkpoint  → 权重名称映射  → 参数拆分或合并  → 并行切分  → 参数加载  → 量化及加载后处理  → 设备侧整理</code></pre>
 <p>可以表示为：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150940050。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150940050.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150940050。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p><code>WeightsMapper</code> 的作用不只是简单重命名。实际加载过程可能同时包含以下几类转换。</p>
 <p>1、参数命名差异：checkpoint 中的 key 与模型实现中的参数名可能不同，需要进行重命名或前缀转换。</p>
 <p>2、参数结构差异：一个 checkpoint tensor 可能需要：</p>
@@ -457,7 +457,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <li>哪些 KV 或 encoder 状态需要创建、更新或释放。</li>
 </ul>
 <p>数据流可以表示为：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150919237。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150919237.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150919237。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p><code>SchedulerOutput</code> 的重要性在于，它将调度决策从具体执行方式中分离出来：</p>
 <pre><code>Scheduler 决定：    这一轮处理谁、处理多少ModelRunner 决定：    如何将这个计划组织成设备侧计算</code></pre>
 <p>从运行时数据协议的角度看，<code>SchedulerOutput</code> 可以被称为一种 step-level IR，即每一步的执行计划。但这里的 IR 主要是“运行时结构化协议”的含义，并不等同于编译器意义上的完整中间表示。</p>
@@ -476,7 +476,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <p><code>SchedulerOutput</code> 是 Scheduler 面向执行器产生的高层执行计划；<code>Attention Metadata</code> 则是 ModelRunner 根据该计划、当前 KV cache 状态和 backend 需求构造出的 attention 算子输入描述。</p>
 </blockquote>
 <p>其构造过程可以表示为：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150858182。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150858182.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150858182。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>Attention metadata 可能包含：</p>
 <ul>
 <li>query 起点；</li>
@@ -522,7 +522,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <li>不同 dtype 和 kernel 实现。</li>
 </ul>
 <p>可以将这一层表示为：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150826145。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923150826145.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923150826145。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>需要对“算子选择”作一个更精确的描述。</p>
 <p>ModelRunner 通常负责准备执行上下文和 metadata；具体 attention 层或 backend 再根据：</p>
 <ul>

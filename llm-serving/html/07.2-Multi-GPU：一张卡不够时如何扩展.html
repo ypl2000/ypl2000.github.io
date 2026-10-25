@@ -107,7 +107,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <li><strong>推理阶段</strong>：循环执行 Prefill 或 Decode，包括输入传递、层间计算、跨 GPU 通信、采样和 KV Cache 管理。</li>
 </ul>
 <p>模型权重加载通常只发生一次，虽然数据量很大，但一般不属于每个请求或每个 Token 的关键路径。真正决定在线推理性能的，主要是推理循环中的高频通信。</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145608604。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923145608604.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145608604。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>从系统角度看，通信链路大致可以分成三类。</p>
 <p><strong>1、CPU 与 GPU 之间</strong></p>
 <p>CPU-GPU 通信通常经过 PCIe。典型数据包括：</p>
@@ -288,7 +288,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <p>在 vLLM 或类似推理框架中，模型并行代码通常不会直接管理底层的 NVLink、PCIe 或 InfiniBand。上层只需要调用相应的集合通信接口，底层通信库再根据当前硬件和进程组执行实际的数据移动。</p>
 <h4 id="221-nccl-如何选择通信路径">2.2.1 NCCL 如何选择通信路径？</h4>
 <p>NCCL 会根据 GPU 拓扑、节点结构、消息规模和可用网络设备选择通信方式。典型路径如下：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145542515。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923145542515.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145542515。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>同一节点内，NCCL 优先使用 NVLink 或 NVSwitch；如果 GPU 之间没有直接 NVLink，则可能使用 PCIe P2P。跨节点时，则需要通过 NIC 和 InfiniBand 或 RoCE 网络进行通信。</p>
 <p>通信性能因此高度依赖物理拓扑。相同数量的 GPU，如果一种机器采用 NVSwitch，而另一种机器主要依赖 PCIe，TP 通信性能可能存在明显差异。跨节点场景中，如果 GPUDirect RDMA 没有正常启用，数据经过 CPU 内存中转，也可能造成显著性能下降。</p>
 <h4 id="222-ringtree-与通信协议">2.2.2 Ring、Tree 与通信协议</h4>

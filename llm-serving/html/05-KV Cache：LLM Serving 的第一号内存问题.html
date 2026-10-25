@@ -166,11 +166,11 @@ article tr:nth-child(even) td{background:#fafbfc}
 </tbody>
 </table>
 <p>映射关系是这样的——注意物理块号完全不需要连续：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144802962。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144802962.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144802962。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>在 vLLM 中，每个物理块（Physical Block）存储固定数量 token 的 K 和 V 张量：</p>
 <pre class="wider"><code># KV Cache 物理布局 (单层)# shape: [num_physical_blocks, block_size, num_kv_heads, head_dim]# 例: [2048 blocks, 16 tokens/block, 8 heads, 128 dim]kv_cache = torch.zeros(num_blocks, block_size, num_kv_heads, head_dim,                        dtype=torch.float16, device=&quot;cuda&quot;)</code></pre>
 <h3 id="13-源码解密核心数据结构关系">1.3 源码解密：核心数据结构关系</h3>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144652275。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144652275.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144652275。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>顺着箭头从上到下跟踪：Request 只是逻辑层，不直接触及 GPU 显存；KVCacheBlock 才是物理块的元数据，它同时挂在 Request 的 blocks 列表和 BlockPool 的 free/cached 列表里；block_id 最终索引到 GPU HBM 中的一片连续显存，里面放的是一整块 block_size 个 token 的 K 和 V。这三层映射是理解后面 Prefix Cache 复用和 Preemption 释放的基础。</p>
 <blockquote>
 <p><strong>回到我们的例子</strong>：2050 个 prompt token，<code>block_size=16</code>，于是需要 <code>⌈2050/16⌉ = 129</code> 个块（前 128 块装满 2048 个 token，第 129 块只装 2 个）。生成完 300 个 token 后，序列长 2350，共占 <strong>147 个块</strong>。</p>
@@ -286,7 +286,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <p>三者是正交的，可以叠加：MLA 减少了要存的量，PagedAttention 管理这些量的摆放，FP8 再把每个元素压小。下面按这个顺序展开。</p>
 <h3 id="31-prefix-cache重复计算复用">3.1 Prefix Cache：重复计算复用</h3>
 <p>在生产环境中，大量请求共享相同的 System Prompt（如 ChatGPT 的系统指令可能占 2000+ tokens）。Prefix Cache 的核心思想是：如果两个请求的前缀 token 完全相同，它们可以共享同一份 KV Cache 块。</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144621766。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144621766.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144621766。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>vLLM 使用链式哈希确保前缀匹配的正确性——每个块的哈希值依赖其前驱块的哈希，因此只有完全相同的前缀序列才会产生相同的哈希链。</p>
 <blockquote>
 <p><strong>回到我们的例子</strong>：那 2000 token 的 system prompt 是 <strong>125 个整块</strong>。第一个请求跑完后它们全部进入缓存；<strong>第二个请求带着同样的 system prompt 到来时，这 125 块全部命中</strong>，只需要 prefill 用户那 50 个 token。</p>
@@ -420,7 +420,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 </tbody>
 </table>
 <p>MLA 的运作分两步——<strong>存的时候压缩，用的时候还原</strong>：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144548684。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144548684.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144548684。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>但朴素做法有个致命问题：<strong>每一步 Decode 都要把全部历史 token 的 latent 解压回全维 K/V</strong>，那省下的显存又变成了带宽开销。真正的关键优化叫 <strong>"吸收"（Absorbing）</strong>——把解压矩阵 <code>W_uk</code> 预先融合进 <code>W_q</code>，于是可以<strong>直接在 latent 空间做 Attention，完全不解压</strong>。这一手的工程细节留到第 7.4.1 节展开。</p>
 <p>压缩效果：相比同规模 MHA 可缩减一个数量级以上；相比 Llama 式 GQA-8（4 KB/token/layer）约缩减 3~4x。</p>
 <p>vLLM 中 MLA 的实现位于 <code>vllm/model_executor/layers/mla.py</code>，通过 <code>MLAAttentionSpec</code> 定义其特殊的 KV Cache 规格（存储 latent 而非完整 KV）。</p>

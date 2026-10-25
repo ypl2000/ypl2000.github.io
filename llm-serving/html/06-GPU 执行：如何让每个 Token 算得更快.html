@@ -787,7 +787,7 @@ Step 3 → token₃ → …  每一步都要：读完整模型权重 + 读全部
 <li><strong>被并行化的是"验证"，不是"生成"</strong>：Target 模型拿到 <code>[d₁...d₅]</code> 这个<strong>已经确定的序列</strong>之后，可以用一次 Forward 同时算出所有位置的真实概率分布——因为此时每个位置的输入前缀都已知了，不需要等上一步的输出。</li>
 </ul>
 <p>所以它的本质是一次<strong>赌注</strong>：用便宜模型猜一条路径，再用贵模型一次性核对这条路径对不对。猜对了就白赚几个 token，猜错了就退回重来。<strong>它省下的是 Target 模型的"轮次"，而不是语言模型的"依赖"。</strong> 这也解释了为什么接受率一低，收益就迅速蒸发——赌输的次数太多了。</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145230282。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923145230282.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145230282。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>三个要点：</p>
 <ul>
 <li><strong>一次 Target Forward 产出了 3 个 token</strong>，理想情况最多能到 K+1 个；</li>
@@ -826,7 +826,7 @@ Step 3 → token₃ → …  每一步都要：读完整模型权重 + 读全部
 <p>投机解码（Speculative Decoding）在 vLLM 中的落地绝非简单的算法套用，其核心难点在于非确定性（Speculative）的显存管理与多模型流水线的数学对冲。</p>
 <h4 id="431-核心数据流拓扑图">4.3.1 核心数据流拓扑图</h4>
 <p>在 vLLM 的实际工程实现中，Draft 模型（草稿模型）与 Target 模型（目标大模型）各自维护一套完全隔离的 KV Cache 空间。Target 模型在验证时，必须使用自己独立计算的 KV 矩阵。以下是 vLLM 投机解码的数据流向与组件交互图：</p>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145158963。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923145158963.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923145158963。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <h4 id="432-关键工程痛点显存管理的时间回溯">4.3.2 关键工程痛点：显存管理的“时间回溯”</h4>
 <p>传统的自回归生成在工程上是单向递增的，显存管理器只需机械地分配新块。然而，投机解码给显存管理引入了“可能要回滚”的全新机制：</p>
 <ul>

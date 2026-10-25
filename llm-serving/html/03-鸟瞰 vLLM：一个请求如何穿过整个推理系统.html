@@ -106,7 +106,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 <p><code>Scheduler</code>（<code>vllm/v1/core/sched/scheduler.py</code>，约 3000 行）是调度的大脑，决定每一轮迭代中哪些请求参与推理、分配多少 token 预算。</p>
 <p><code>KVCacheManager</code>（<code>vllm/v1/core/kv_cache_manager.py</code>）管理 GPU 显存上的 KV Cache 物理块——分配、释放、前缀缓存复用、驱逐。</p>
 <h3 id="worker-与-model-executor模型执行的设备抽象">Worker 与 Model Executor：模型执行的设备抽象</h3>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923143929246。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923143929246.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923143929246。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <p>常见 GPU 部署中，Executor 会把一次 <code>execute_model()</code> 调用分发给一个或多个 Worker；Worker 再调用本地的 <code>ModelRunner</code> 执行模型前向、采样和 KV Cache 读写。单卡、同机多进程、Ray 分布式和 external launcher 的进程/设备映射并不完全相同，因此不应把“一个 GPU 固定绑定一个 Worker 进程”写成绝对规则。</p>
 <p>每个 Worker 通常负责：</p>
 <ul>
@@ -124,7 +124,7 @@ article tr:nth-child(even) td{background:#fafbfc}
 </ul>
 <p>这条继承链本身就说明了一件事：<strong>"用不用 Ray"是部署方式的差异，不是执行模型的差异。</strong> Executor 这层抽象的价值就在于把"进程怎么起、卡怎么分"和"一轮 batch 怎么执行"彻底分开，所以 V2 才能靠换掉进程拉起方式来复用同机多进程的全部逻辑。</p>
 <h2 id="2-一次请求的完整生命周期">2. 一次请求的完整生命周期</h2>
-<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144040469。<br>原文引用工作电脑 Typora 路径：<code>C:\Users\y00856209\AppData\Roaming\Typora\typora-user-images\image-20260923144040469.png</code></figcaption></figure></p>
+<p><figure class="img-missing"><div class="im-box">🖼 原文图片缺失（本机不存在）</div><figcaption>原图说明：image-20260923144040469。<br>原文引用写作时的本地图片路径（未随笔记发布）</figcaption></figure></p>
 <h2 id="3-数据流token-如何穿过整个-serving-栈">3. 数据流：Token 如何穿过整个 Serving 栈</h2>
 <pre class="wider"><code>
 ┌──────┐
