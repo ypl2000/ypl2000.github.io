@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="从 Prefill/Decode 的负载差异讲起，梳理 PD 分离与存储池化的实现逻辑，拆解异构 PD 在芯片架构、物理组网、并行策略与 connector 生态上的四类工程难点。">
+<meta name="author" content="ypl2000">
+<title>异构 PD 分离的趋势、实现与难点 · AI 与大模型笔记</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="index.html">AI 与大模型笔记</a>
+    <nav></nav>
+  </div>
+</header>
+<main class="wrap">
+  <nav class="crumb"><a href="index.html">← 返回首页</a></nav>
+  <article class="article-body">
+    <header class="ahead">
+      <span class="badge">LLM Serving 笔记</span>
+      <h1>异构 PD 分离的趋势、实现与难点</h1>
+      <div class="meta">2026-11-10 · ypl2000</div>
+    </header>
+    <h2
+id="一背景推理负载被改写pd-分离成为必然">一、背景：推理负载被改写，PD
+分离成为必然</h2>
+<h3 id="11-模型推理的两个阶段prefill-和-decode">1.1
+模型推理的两个阶段：Prefill 和 Decode</h3>
+<p>大模型生成一次回答，需要经历两个阶段：</p>
+<ul>
+<li><strong>Prefill（预填充）</strong>：模型一次性"读完"输入的全部内容，并行计算每个
+token 的中间结果。这个阶段需要密集的矩阵运算，属于计算密集型负载，即
+compute-bound。</li>
+<li><strong>Decode（解码）</strong>：模型逐个 token
+地计算答案。每写一个字，都要回头翻阅前面所有内容的中间结果。这个阶段需要反复的内存读取，属于访存密集型负载，即
+memory-bound。</li>
+</ul>
+<p>衔接两个阶段的中间结果就是 KV Cache：推理时把每层注意力的 Key/Value
+缓存下来，避免每生成一个字都重算一遍全部历史。它的体积与上下文长度成正比，长上下文场景下能膨胀到
+GB 级。</p>
+<p>两个阶段的差异可以参考下表：</p>
+<table>
+<thead>
+<tr>
+<th>特性</th>
+<th>Prefill（预填充）</th>
+<th>Decode（解码）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>处理单位</td>
+<td>整个 Prompt，N 个 token 并行</td>
+<td>一次一个 token</td>
+</tr>
+<tr>
+<td>计算性质</td>
+<td>计算密集型</td>
+<td>访存密集型</td>
+</tr>
+<tr>
+<td>并行性</td>
+<td>高度并行</td>
+<td>串行为主</td>
+</tr>
+<tr>
+<td>性能瓶颈</td>
+<td>算力（FLOPS）</td>
+<td>显存带宽（GB/s）</td>
+</tr>
+<tr>
+<td>体验指标</td>
+<td>TTFT：首字延迟</td>
+<td>TPOT：逐字生成间隔</td>
+</tr>
+</tbody>
+</table>
+<p>TTFT（Time To First
+Token）是从发出请求到看到第一个字的时间，包含请求排队时延和 Prefill
+计算时间；TPOT（Time Per Output
+Token）是之后每个字的生成间隔。两者是衡量 MaaS 系统性能的重要指标。</p>
+<p>由此得到一个推论：做 Prefill 的节点，算力越大越好；做 Decode
+的节点，显存带宽越大越好。但把这个推论落到工程上，会有一系列问题要解决。</p>
+<h3 id="12-单机混部的痛点既要-prefill-又要-decode互相拖累">1.2
+单机混部的痛点：既要 Prefill 又要 Decode，互相拖累</h3>
+<p>单机混部方式下，同一批卡既做 Prefill 又做
+Decode，两种负载的资源特性错配：</p>
+<ul>
+<li><strong>调度互相阻塞</strong>。两阶段共享同一批卡的算力和显存，batch
+调度互相牵制。一个长输入请求在做 Prefill 时，会卡住 batch 里其他请求的
+Decode，导致所有生成中的请求 TPOT 集体抖动。</li>
+<li><strong>无法分别优化</strong>。两个阶段需要用不同的并行策略和资源配置，混部下只能选用对两者都兼容的策略，结果往往是：TTFT
+达标了，吞吐不理想；吞吐上去了，TTFT 又无法达标。</li>
+<li><strong>显存互相挤占</strong>。KV Cache 随上下文膨胀，长输入请求的
+KV Cache 挤占生成中请求的显存，压低 batch
+大小上限。当前的上下文越来越长，挤占的情况越来越普遍。</li>
+<li><strong>硬件利用率低</strong>。算力型和访存型负载对硬件的要求不同，同一批卡同时应对两种负载，无法完全发挥两类特性。</li>
+</ul>
+<p>因此，混部主要作为流量低谷期的合并部署或服务降级的备用形态存在，已退出主流生产架构。</p>
+<h3
+id="13-ai-coding--agent-改写负载形态长输入短输出的话务模型成为主流">1.3
+AI Coding &amp; Agent 改写负载形态，长输入短输出的话务模型成为主流</h3>
+<p>PD 分离成为推理系统的必然形态，是负载本身的变化和收敛导致的。2025
+年，海外 AI Coding
+产品率先放量，推理集群第一次大规模面对"输入远长于输出"的长上下文负载；2026
+年，国产模型在代码与 Agent 能力上跟了上来，叠加 Claude Code 的开源，国内
+AI Coding 与 Agent
+应用随之爆火。业界对推理系统的要求，从"能用"转向"好用、便宜、规模大"。</p>
+<p>代码与 Agent 能力的提升，得益于下面两点：</p>
+<ul>
+<li><strong>模型能力的提升</strong>：
+<ul>
+<li>上下文窗口从 128K 扩展到
+1M，模型第一次能把整个代码库、依赖关系、编码规范一次性放进上下文；</li>
+<li>代码生成质量跨过可用性临界点，公开软件工程基准（如
+SWE-bench）的通过率持续攀升，模型产出的代码接近生产可用；</li>
+<li>指令遵循与结构化输出成熟，模型能按 IDE
+约束生成可应用的补丁格式、调用工具，并完成多文件编辑。</li>
+</ul></li>
+<li><strong>Agent 能力的成熟</strong>：
+<ul>
+<li>过去是人主导书写、模型补全；现在是模型自主执行，理解任务、规划步骤、跨文件编辑、运行测试、继续修复，实现"读代码—改代码—验证"循环；</li>
+<li>Agent
+每一轮循环都把工具返回结果、文件内容、历史操作重新塞回上下文，输入侧随任务推进不断膨胀，单次任务的输入量远超人类一次提问。</li>
+</ul></li>
+</ul>
+<p>因此，AI Coding &amp; Agent
+让大模型推理的话务模型走向"长输入、短输出"，变成 Prefill-heavy
+的负载形态。具体特征如下：</p>
+<ul>
+<li>输入序列长度极长，整个仓库/文件作为上下文；输出序列长度在 1K~10K
+之间，只输出部分代码或 Agent 过程中产生的信息；</li>
+<li>请求模式突发性强，一次任务需要 Agent 长时间自主工作；</li>
+<li>多轮对话频繁，代码需要反复调试、修改；</li>
+<li>前缀复用极高，同一份系统提示、同一批文件上下文被反复使用。</li>
+</ul>
+<p>对应到推理系统的落地，关键需求和约束有三：</p>
+<ul>
+<li>首字延迟影响大部分用户的使用体验，因此对 TTFT 极度敏感；</li>
+<li>MaaS 系统的单位 token
+成本直接影响投入产出，要求吞吐高、成本低，因此要具备高并发能力，并能承载持续的大流量访问；</li>
+<li>整仓读取、多文件访问是常态，KV Cache 会膨胀至 GB
+级，长上下文推理要稳定支撑，互联带宽也要足够大。</li>
+</ul>
+<p>某项业务的实测 SLO 可以作为量级参考：输入 128K token 时，TTFT
+要求控制在 5 秒以内。因此靠单机硬扛长序列 Prefill，已经无法满足这样的
+SLO。混部的资源矛盾，在 Prefill-heavy 负载下被彻底激化。</p>
+<h3 id="14-pd-分离拆开两个阶段充分使用显存">1.4 PD
+分离：拆开两个阶段，充分使用显存</h3>
+<p><strong>PD 分离</strong>：把 Prefill 和 Decode
+拆成两个独立实例池，各自扩缩容、各自调优并行策略。学界已有一批公开论文验证收益；月之暗面公开的
+Mooncake 系统采用 PD 分离 + 共享内存池，有效吞吐平均提升 75%。</p>
+<p><strong>存储池化</strong>：把 KV Cache
+沉淀到集群级三级存储，打破单卡显存墙。</p>
+<table>
+<thead>
+<tr>
+<th>层级</th>
+<th>定位</th>
+<th>延迟</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HBM（显存）</td>
+<td>热缓存，执行中的请求</td>
+<td>纳秒级</td>
+</tr>
+<tr>
+<td>DRAM（内存）</td>
+<td>温缓存，排队中的请求</td>
+<td>微秒级</td>
+</tr>
+<tr>
+<td>SSD</td>
+<td>冷缓存，高频前缀</td>
+<td>毫秒级</td>
+</tr>
+</tbody>
+</table>
+<p>缓存命中的请求直接复用存储中已有的 KV Cache、跳过 Prefill
+计算（也就是"以存换算"），减轻 Prefill
+的计算负担。凭借这些收益，池化已是主流推理服务的标配。</p>
+<p>PD 分离 + 池化，恰好对应解决了混部的四个问题：</p>
+<ul>
+<li><strong>避免阶段干扰</strong>：Prefill 和 Decode
+物理隔离，互不阻塞，TTFT 与 TPOT 两个 SLO 可以同时满足；</li>
+<li><strong>规避资源错配</strong>：两个池子按各自负载特性独立配硬件、配并行策略、配数量；</li>
+<li><strong>打破显存墙</strong>：KV Cache
+上收到集群池，容量极大扩展；</li>
+<li><strong>减少重复计算</strong>：相同前缀全集群只算一次，前缀缓存跨请求复用。</li>
+</ul>
+<p>但业界当前规模化落地的 PD
+分离，几乎全部采用同型号的卡——资源错配并没有解决干净：P
+阶段的卡显存仍然浪费，D 阶段的卡算力利用率也不高。</p>
+<h3 id="15-下一代的趋势异构-pd-分离">1.5 下一代的趋势：异构 PD 分离</h3>
+<p>要解决硬件利用率的问题，办法就是让两个池子用不同的硬件：P
+节点用高算力卡，Prefill 是算力密集型，高算力卡大幅缩短首字延迟；D
+节点用大带宽卡，Decode 是访存密集型，大带宽卡逐字生成更流畅。</p>
+<p>从芯片规格划分上看，这个趋势已然成为厂商营销的卖点之一，这里以一组芯片数据为例：</p>
+<table>
+<thead>
+<tr>
+<th>芯片</th>
+<th>FP16 算力</th>
+<th>显存带宽</th>
+<th>特长</th>
+<th>适合角色</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>昇腾 910C</td>
+<td>560/752 TFLOPS</td>
+<td>3.2 TB/s</td>
+<td>高算力</td>
+<td>中大规模 Prefill</td>
+</tr>
+<tr>
+<td>昇腾 950PR</td>
+<td>380 TFLOPS</td>
+<td>1.6 TB/s</td>
+<td>算力优先</td>
+<td>Prefill（P 节点）</td>
+</tr>
+<tr>
+<td>昇腾 950DT</td>
+<td>486 TFLOPS</td>
+<td>4 TB/s</td>
+<td>带宽优先</td>
+<td>Decode（D 节点）</td>
+</tr>
+<tr>
+<td>NVIDIA H20</td>
+<td>较低</td>
+<td>高</td>
+<td>访存优先</td>
+<td>Decode（D 节点）</td>
+</tr>
+</tbody>
+</table>
+<p>单从芯片规格上看，同代际不同系列可以组异构（950PR 做 P、950DT 做
+D），跨厂商也可以（高算力卡做 P、H20 做 D）。</p>
+<p>但是，实际落地情况并不乐观：同厂商跨代际/跨型号组合已有小规模验证（如
+H20 与
+H200），可以跑通且有可观的性能收益，但稳定性存疑；跨厂商异构已有宣传（如
+NVIDIA 与摩尔线程的组合），尚无确切的评测数据可供参考。</p>
+<h2 id="二pd-分离的实现逻辑">二、PD 分离的实现逻辑</h2>
+<p>前面讲了 PD
+分离的背景和收益，这里简单探讨一下它的实现逻辑，主要涉及推理框架和 KV
+Cache 管理组件两类角色。</p>
+<h3 id="21-推理框架和-kv-组件的分工">2.1 推理框架和 KV 组件的分工</h3>
+<p>做 PD 分离，"推理框架"和"KV Cache
+管理组件"是两类角色。两者不少功能名称相似，但实际作用不同。</p>
+<p><strong>推理框架（如 vLLM、SGLang）管"算"</strong>：</p>
+<ul>
+<li>请求调度与 batch 组织、Prefill/Decode
+前向计算、采样与流式返回；</li>
+<li>节点内 KV Cache 的分页管理（如 PagedAttention 把显存切成固定大小的
+block 页），管理"本节点上每个请求的 KV 落在哪个 block"。</li>
+</ul>
+<p>但推理框架并不擅长跨节点的管理，比如 RDMA
+传输细节、跨节点寻址、多级存储调度——这些逻辑若写进计算主循环，会让计算单元大量空转。</p>
+<p><strong>KV Cache 管理组件（如 Mooncake、Memcache）管"KV Cache
+的搬和存"</strong>：</p>
+<ul>
+<li><strong>Transfer Engine（传输引擎）</strong>：基于 RDMA
+等协议的跨节点批量传输，跑在独立线程里，不占用框架的计算主循环；</li>
+<li><strong>Distributed Store（分布式对象存储）</strong>：把 KV
+按内容寻址写入共享池，支持 HBM/DRAM 多级介质（SSD
+层演进中），跨请求、跨实例复用；</li>
+<li><strong>前缀缓存管理</strong>：相同前缀全集群只需要算一次。</li>
+</ul>
+<p>推理框架和 KV Cache 管理组件之间靠 connector 插件对接。</p>
+<p>框架在 Prefill 算完（或算完一层）、Decode 前需要加载 KV、请求结束释放
+block 这几个时机，都要回调 connector；connector
+则决定对接哪个后端、走哪种模式、用什么传输协议。</p>
+<p>主流框架都定义了 KV 传输插件接口（如 vLLM 的 KV Connector
+API），可以对接 Mooncake 这类后端；vLLM-Ascend
+等硬件适配分支则在插件中加入了昇腾专用的传输路径。</p>
+<p>但是要注意：<strong>不同框架、不同分支、不同后端的 connector
+并不互通，这是异构 PD 落地的难点之一。</strong></p>
+<h3 id="22-kv-的两种交付模式p2p-直传与-pool-共享池">2.2 KV
+的两种交付模式：P2P 直传与 Pool 共享池</h3>
+<p>Mooncake 类组件对外提供两种 KV 交付模式，对应两类不同的业务诉求。</p>
+<p><strong>P2P 直传：为单次请求服务</strong></p>
+<ul>
+<li>数据通路：P 节点显存 →（RDMA 零拷贝）→ D
+节点显存，没有落盘和中转；</li>
+<li>生命周期：请求级，KV 传完即用，用完即释放；</li>
+<li>两种方向：Pull（D 主动拉取）与 Push（P 逐层推送），Push
+能让"算一层、传一层、收一层"流水线重叠；</li>
+<li>强耦合：两端必须同时在线，P 要等 D 确认收齐才能释放显存 block，D
+要先拿到 P 的元数据才知道去哪读；</li>
+<li>不产生留存：下一个相同前缀的请求来了，P 还要重新算一遍。</li>
+</ul>
+<p><strong>Pool 共享池：为所有请求服务</strong></p>
+<ul>
+<li>数据通路：P 把算好的 KV
+写入分布式对象存储（按前缀内容寻址），之后任何节点上的请求都能按 key
+读取；</li>
+<li>生命周期：跨请求、跨实例，可配置淘汰策略，支持 HBM/DRAM
+多级介质；</li>
+<li>解耦：写入方与读取方不必同时在线，P 写完即可释放本地显存；</li>
+<li>复用：相同前缀全集群不用重复计算。</li>
+</ul>
+<p>两种模式并不互斥，允许同时挂载：P2P 负责当次请求的时效性传输，Pool
+负责跨请求的前缀复用。由此组合出三种部署形态：</p>
+<table>
+<thead>
+<tr>
+<th>部署形态</th>
+<th>说明</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>P2P + Pool（池仅 P 侧）</td>
+<td>P 直传 KV 给 D；Pool 只做 P 侧前缀缓存，D
+不访问（但贡献共享内存）</td>
+</tr>
+<tr>
+<td>P2P + Pool（双侧）</td>
+<td>D 也把新生成的 KV 写入池，供后续请求复用</td>
+</tr>
+<tr>
+<td>仅 Pool（无 P2P）</td>
+<td>KV 全部经池中转</td>
+</tr>
+</tbody>
+</table>
+<h3 id="23-一次请求的完整旅程">2.3 一次请求的完整旅程</h3>
+<p>以逐层推送（Layerwise，Push 型）connector 为例，一次请求在 PD
+分离系统里的旅程是：</p>
+<ol type="1">
+<li>Client 请求到 Proxy（调度/负载均衡网关）；</li>
+<li>Proxy 先选定 D 节点并登记，D 侧设置"等待远端 Prefill 结果"；</li>
+<li>Proxy 选定 P 节点并下发请求；</li>
+<li>P 执行 Prefill，每算完一层 KV；</li>
+<li>通过 RDMA 逐层推送给 D（计算与传输流水线重叠）；</li>
+<li>D 逐层等待接收，全部到齐后开始 Decode 循环；</li>
+<li>结果流式经 Proxy 返回 Client。</li>
+</ol>
+<p>Pull 型 connector 的差别在调度顺序和传输粒度：Proxy 先选 P、Prefill
+全部算完后，再选 D，由 D 发起 RDMA 一次性拉取全部
+KV。两者的优劣可以参考下表：</p>
+<table>
+<thead>
+<tr>
+<th>维度</th>
+<th>V1（Pull，整体传输）</th>
+<th>Layerwise（Push，逐层传输）</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>调度顺序</td>
+<td>先选 P → Prefill 完 → 再选 D</td>
+<td>先选 D → D 登记 → 再选 P</td>
+</tr>
+<tr>
+<td>KV 传输</td>
+<td>D 主动拉取，Prefill 完成后一次性整体传输</td>
+<td>P 算完一层推一层，流水线重叠</td>
+</tr>
+<tr>
+<td>首 Token 延迟</td>
+<td>需等全部 KV 传完</td>
+<td>计算与传输重叠，延迟更低</td>
+</tr>
+<tr>
+<td>实现复杂度</td>
+<td>简单，适合快速验证</td>
+<td>较复杂</td>
+</tr>
+</tbody>
+</table>
+<h3 id="24-为什么两端的-connector-必须一致">2.4 为什么两端的 connector
+必须一致</h3>
+<p>前面提到不同的 connector 并不互通，原因是 connector
+两端要按一套固定约定来交换 KV Cache：</p>
+<ul>
+<li><strong>特定的元数据格式</strong>。传输正式开始前，两端要先交换控制元数据：引擎标识、监听地址与端口、本次传输涉及哪些
+block、数据怎么分片等，每个 connector 都自定义这套结构。两端 connector
+不同，元数据就无法对齐。</li>
+<li><strong>传输语义必须对称</strong>。Pull
+要求一端发起远端读、另一端已按同样方式注册并暴露内存；Push
+要求一端按同样的节奏写、另一端按同样的协议确认。传输完成的通知、ACK、block
+释放时机都是成对的握手。两端的传输语义混搭，轻则互相等待卡死，重则 block
+被提前释放，或者 Decode 读到脏数据。</li>
+<li><strong>不同 connector 对字节有特定解释方法</strong>。同样一串 KV
+字节，按什么数据类型读、按什么布局排、按什么分页大小切
+block、偏移量怎么算，这些约定由 connector
+层携带和对齐。两端不同，即使字节本身一模一样，也可能被按不同的偏移和形状解读，导致数值错误。</li>
+<li><strong>生命周期与容错语义的特定实现</strong>。什么时候可以释放
+KV、KV 加载失败要不要触发重算，这些策略在 connector
+内部都是成对设计的。单边更换
+connector，释放与容错的时序就对不上，可能出现死锁、显存泄漏或数据竞争。</li>
+</ul>
+<h2 id="三异构-pd-分离的四类难点">三、异构 PD 分离的四类难点</h2>
+<p>同构 PD 与异构 PD 的工程落地难度完全不同：同构 PD
+两端是同型号设备，软件栈、默认数据格式、组网形态、并行策略天然对齐，connector、协议、布局均可保持一致，工程实现相对简单；异构
+PD 场景下，这些一致性都需要重新打通。核心难点分为四类：</p>
+<h3 id="31-芯片架构差异两套软件栈默认格式不一致">3.1
+芯片架构差异：两套软件栈，默认格式不一致</h3>
+<p>异构芯片的软件栈大多各自独立，这会导致 KV Cache
+在两端的默认理解不一样：</p>
+<ul>
+<li><strong>数据类型</strong>：P 侧可能用 MXFP8/BF16，D 侧用
+FP8/BF16。两端 KV dtype
+必须一致或格式兼容，否则数据解析异常。在接收端补一层 dtype
+转换也能跑，但转换逻辑会严重拖慢性能，异构分离的优势就不复存在了。</li>
+<li><strong>内存布局</strong>：KV Cache 按 NHD（同一 token 的各 head
+连续存放）或 HND（同一 head 的各 token
+连续存放）排布，两端可能不同；布局不一致会直接导致地址偏移错误。</li>
+<li><strong>分页与对齐</strong>：block size
+两端须一致；部分国产芯片默认要求内存地址按固定大小（如 4KB）对齐，GPU
+无强制要求，两端的内存注册方式也要对齐。</li>
+<li><strong>算子对齐策略</strong>：针对 MLA、DSA
+等特殊注意力结构，因两端算子对 KV block 的对齐策略不同，block
+形状可能不一致，也需要专门适配。</li>
+</ul>
+<p>这类问题的麻烦在于错误形态：dtype
+或布局不对齐，轻则直接报错，重则链路跑通、数值却按错误的偏移被解读，排查起来远比报错难缠。</p>
+<h3 id="32-物理组网带宽与互联能力是硬门槛">3.2
+物理组网：带宽与互联能力是硬门槛</h3>
+<p>KV Cache 传输本质是用网络搬显存，组网决定 PD
+分离能做多大、异构能不能接上。</p>
+<p>需求侧的带宽是硬门槛，核心约束是"KV 传输时间必须被 P
+侧计算时间掩盖"，否则 D
+在空转——带宽不足时，传输延迟会直接吃掉分离的收益。</p>
+<p>供给侧的互联能力往往不对称，这是异构独有的问题：</p>
+<ul>
+<li>异构直连依赖高带宽传输能力（如昇腾的 NDR，NPU Direct
+RDMA），部分设备不具备（如 910B/910C）；不具备 NDR
+的设备无法与高代际设备或 GPU 高效直连；</li>
+<li>各系列设备支持的传输协议不同（host RDMA / device RDMA / SDMA / UB /
+HCCS 等），而 P、D 两端协议必须一致，可选的组合空间有限；</li>
+<li>昇腾侧传输库（HIXL）目前不支持 GPU，因此跨厂商路径只能走标准 RDMA
+协议；</li>
+<li>组网拓扑约束：部分系列依赖超节点组网形态；跨集群、跨地域部署时 P2P
+直连不可用，只能通过 Pool 中转，延迟显著增大。</li>
+</ul>
+<p>同构时组网是现成的，异构时组网往往要专门搭，很多异构项目在组网条件上就已经让人望而却步。</p>
+<h3 id="33-并行策略两端切法不同kv-对不上号">3.3
+并行策略：两端切法不同，KV 对不上号</h3>
+<p>KV Cache 按注意力头做张量并行切分。同构时两侧切法一致，KV block
+天然对齐；异构时两侧并行度可能不同：</p>
+<ul>
+<li><strong>TP 不对等</strong>（如 P 侧 TP=4、D 侧 TP=8）：head
+无法直接映射，KV 需要重排或复制，目前主流 connector 对"P TP &lt; D
+TP"的支持仍在补齐中。TP 切分要求卡数能整除 KV
+头数，否则回退为"复制模式"（不做 head 切分，整份 KV Cache
+复制到每张卡）；</li>
+<li><strong>PP 流水线并行</strong>：P 侧可能 PP&gt;1 部署，D 侧需按 P
+侧的分层配置正确映射各 PP rank 的层索引；部分 connector 暂不支持
+PP；</li>
+<li><strong>上下文并行（PCP/DCP）</strong>：影响 block
+在卡间的分布；</li>
+<li><strong>EP 不对等</strong>（如 P 侧 EP=4、D 侧 EP=16）：MoE 模型下的
+KV 路由与负载均衡策略，暂无成熟解法。</li>
+</ul>
+<p>TP 不对等场景下，布局也有讲究：NHD 布局实现简单（不用改 KV Cache
+Layout），但传输 descriptor 会翻 block size 倍，传输性能不佳；HND
+布局传输性能更优，但需要算子支持 HND 格式的 KV Layout。</p>
+<h3 id="34-框架与-kv-cache-约束">3.4 框架与 KV Cache 约束</h3>
+<ul>
+<li><strong>框架约束</strong>：异构场景目前仅 vLLM 系推理框架支持，底层
+AI 框架仅支持 PyTorch。</li>
+<li><strong>connector 生态约束</strong>：不少 connector
+与特定硬件深度绑定。例如，昇腾原生的 MooncakeConnectorV1/Layerwise 与
+NPU 绑定，GPU 侧使用需做去依赖的代码适配；AscendStoreConnector
+与昇腾设备绑定；vLLM 社区的 MooncakeStoreConnector
+没有深度绑定硬件，NPU/GPU
+理论上都支持，但异构场景尚未验证。留给异构的选择就更少了。</li>
+</ul>
+<h2 id="四小结">四、小结</h2>
+<ul>
+<li><strong>负载决定架构</strong>：AI Coding 与 Agent
+把推理负载改写成"长输入、短输出"的 Prefill-heavy 形态，TTFT
+成为首要体验指标。混部在这一负载下互相拖累，PD 分离成为必然。</li>
+<li><strong>PD 分离 +
+存储池化</strong>解决了阶段干扰、资源错配、显存墙、重复计算四个问题；但同构部署没有把资源错配解决干净。P
+阶段的卡显存用不满，D 阶段的卡算力吃不饱，异构 PD
+分离由此成为下一代方向。</li>
+<li><strong>实现上是两层分工</strong>：推理框架管"算"，KV Cache
+管理组件管"搬和存"，connector 是两层之间的契约。KV 有 P2P 直传与 Pool
+共享池两种交付模式，分别服务单次请求与跨请求复用；两端的 connector
+必须一致，这是贯穿异构落地的第一约束。</li>
+<li><strong>难在工程，不在原理</strong>：芯片架构差异（两套软件栈、默认格式不一致）、物理组网（带宽硬门槛
++ 互联能力不对称）、并行策略（TP/PP/EP 不对等）、框架与 connector
+生态绑定。同构考的是架构设计，异构考的是跨体系的工程对齐。</li>
+<li><strong>异构已有方向，尚未成熟</strong>：同厂商跨型号组合有小规模验证、收益可观但稳定性待考，跨厂商异构已有宣传但缺乏公开评测数据支撑。方案仍在快速演进，生产选型前请以
+vLLM、vLLM-Ascend 等社区的最新版本与验证结论为准。</li>
+</ul>
+  </article>
+</main>
+<footer class="sitefoot">
+  <div class="wrap">© 2026 ypl2000 · 托管于 GitHub Pages</div>
+</footer>
+</body>
+</html>

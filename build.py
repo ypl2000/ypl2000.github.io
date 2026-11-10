@@ -41,6 +41,22 @@ ARTICLES = [
         "external": True,
         "more": "查看知识地图 →",
     },
+    {
+        "src": "src/heterogeneous-pd-disaggregation.md",
+        "out": "heterogeneous-pd-disaggregation.html",
+        "title": "异构 PD 分离的趋势、实现与难点",
+        "series": "LLM Serving 笔记",
+        "date": "2026-11-10",
+        "summary": "从 Prefill/Decode 的负载差异讲起，梳理 PD 分离与存储池化的实现逻辑，拆解异构 PD 在芯片架构、物理组网、并行策略与 connector 生态上的四类工程难点。",
+    },
+    {
+        "src": "src/research-maas-pd-heterogeneous.md",
+        "out": "research-maas-pd-heterogeneous.html",
+        "title": "科研机构为什么需要 MaaS，为什么迟早要做 PD 异构",
+        "series": "MaaS 与算力运营",
+        "date": "2026-11-10",
+        "summary": "从科研机构“分卡到人”的算力现状出发，分析使用方式与负载的错配，说明 MaaS 池化如何把散卡收成可计量、可分摊的算力池，并给出到 PD 异构的分步落地路径与投入产出测算。",
+    },
 ]
 
 ROOT = Path(__file__).parent
