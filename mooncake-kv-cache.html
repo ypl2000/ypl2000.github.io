@@ -288,6 +288,17 @@ svg .flow-g{stroke:var(--gr);marker-end:url(#ar-g)}
 svg .flow-r{stroke:var(--ro);marker-end:url(#ar-r)}
 svg .flow-v{stroke:var(--vi);marker-end:url(#ar-v)}
 svg .flow-d{stroke:var(--dim-2);marker-end:url(#ar-d)}
+
+/* 数据流：流动虚线（控制类 .wire 保持静态虚线） */
+svg .flow,svg .flow-a,svg .flow-g,svg .flow-r,svg .flow-v,svg .flow-d{
+  stroke-dasharray:6 5;
+  animation:dashflow 1.15s linear infinite;
+}
+svg .flow-g.mk-g-s{animation-duration:1.7s}
+@keyframes dashflow{from{stroke-dashoffset:0}to{stroke-dashoffset:-22}}
+@media (prefers-reduced-motion:reduce){
+  svg .flow,svg .flow-a,svg .flow-g,svg .flow-r,svg .flow-v,svg .flow-d{animation:none}
+}
 svg .wire.mk-a{stroke:var(--am);marker-end:url(#ar-a)}
 svg .wire.mk-g{stroke:var(--gr);marker-end:url(#ar-g)}
 svg .wire.mk-r{stroke:var(--ro);marker-end:url(#ar-r)}
