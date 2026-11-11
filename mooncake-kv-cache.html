@@ -585,10 +585,9 @@ p.small{margin:10px 0 0}
         </div>
       </div>
       <div class="mast-meta">
-        <b>SOURCES</b>
-        FAST '25 论文 · vLLM-Ascend<br>
-        Mooncake 65P · 大厂核对 2026-10<br>
-        13 CHAPTERS · 28 FIGURES
+        <b>AT A GLANCE</b>
+        4 PARTS · 13 CHAPTERS<br>
+        28 FIGURES · 1 PAGE
       </div>
     </div>
 
@@ -670,7 +669,7 @@ p.small{margin:10px 0 0}
   </div>
   <div class="sec-body">
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 01 · 跨节点相同前缀的 KV Cache 浪费<span class="fig-tag">重绘自 P5 / P6</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 01 · 跨节点相同前缀的 KV Cache 浪费</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1180 470" role="img" aria-label="跨节点前缀未复用与公共缓存池对比">
       <!-- LEFT: before -->
@@ -786,7 +785,7 @@ p.small{margin:10px 0 0}
   </div>
   <div class="sec-body">
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 02 · Mooncake 总体架构（四大资源池 + 全局调度）<span class="fig-tag">重绘自论文 Figure 2</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 02 · Mooncake 总体架构（四大资源池 + 全局调度）</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1280 700" role="img" aria-label="Mooncake 架构图">
       <defs>
@@ -1050,7 +1049,7 @@ p.small{margin:10px 0 0}
   </div>
   <div class="sec-body">
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 03 · Prefill / Decode 两阶段解耦工作流<span class="fig-tag">重绘自论文 Figure 4</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 03 · Prefill / Decode 两阶段解耦工作流</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 600" role="img" aria-label="PD 解耦四步工作流">
       <!-- prefill -->
@@ -1174,7 +1173,7 @@ p.small{margin:10px 0 0}
 
 <h3>块级哈希：前缀匹配到底在匹配什么</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 04 · KVCache Pool 在 CPU 内存中的存储与传输逻辑<span class="fig-tag">重绘自论文 Figure 3</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 04 · KVCache Pool 在 CPU 内存中的存储与传输逻辑</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 640" role="img" aria-label="KVCache 块哈希与前缀匹配">
       <!-- token blocks -->
@@ -1334,7 +1333,7 @@ p.small{margin:10px 0 0}
 </div>
 
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 05 · Transfer Engine 内部结构与远端段<span class="fig-tag">重绘自 P28 / P29</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 05 · Transfer Engine 内部结构与远端段</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1100 500" role="img" aria-label="TransferEngine 段与批量传输">
       <rect x="24" y="20" width="420" height="450" rx="2" class="n-2"/>
@@ -1407,7 +1406,7 @@ p.small{margin:10px 0 0}
 
 <h3>落到昇腾：七种传输场景对应七条物理链路</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 06 · Ascend 传输路径矩阵（HCCS / PCIe / RoCE / GDS）<span class="fig-tag">重绘自 P29 传输场景表</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 06 · Ascend 传输路径矩阵（HCCS / PCIe / RoCE / GDS）</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 660" role="img" aria-label="昇腾传输路径">
       <!-- node A -->
@@ -1523,7 +1522,7 @@ p.small{margin:10px 0 0}
 
 <h3>拓扑感知：先算清楚“哪块内存走哪个网卡”</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 07 · 拓扑矩阵与首选 / 次选 NIC 选择<span class="fig-tag">重绘自 P30</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 07 · 拓扑矩阵与首选 / 次选 NIC 选择</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 640" role="img" aria-label="拓扑感知路径选择">
       <!-- DIMM left -->
@@ -1638,7 +1637,7 @@ p.small{margin:10px 0 0}
 
 <h3>批量传输的生命周期与端点管理</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 08 · BatchTransfer 调用序列与状态机<span class="fig-tag">重绘自 P31 / P32</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 08 · BatchTransfer 调用序列与状态机</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1100 470" role="img" aria-label="批量传输 API 生命周期">
       <rect x="30" y="50" width="190" height="56" rx="2" class="n n-acc"/>
@@ -1747,7 +1746,7 @@ p.small{margin:10px 0 0}
 
 <h3>写链路：PutStart → 并行写 N 副本 → PutEnd</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 09 · PUT 写入时序（多副本并行）<span class="fig-tag">重绘自 P33</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 09 · PUT 写入时序（多副本并行）</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1100 540" role="img" aria-label="Mooncake Store PUT 时序">
       <!-- lifelines -->
@@ -1796,7 +1795,7 @@ p.small{margin:10px 0 0}
 
 <h3>读链路：热缓存直拷，未命中才去远端</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 10 · GET 读取时序（热命中 / 未命中 / 故障切换）<span class="fig-tag">重绘自 P34</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 10 · GET 读取时序（热命中 / 未命中 / 故障切换）</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1100 600" role="img" aria-label="Mooncake Store GET 时序">
       <g>
@@ -1858,7 +1857,7 @@ p.small{margin:10px 0 0}
 
 <h3>SSD Offload：内存 → 磁盘 → 再读回</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 11 · FileStorage / StorageBackend 架构<span class="fig-tag">重绘自 P38</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 11 · FileStorage / StorageBackend 架构</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 900 580" role="img" aria-label="SSD Offload 架构">
       <rect x="150" y="20" width="600" height="46" rx="2" class="n n-2"/>
@@ -1906,7 +1905,7 @@ p.small{margin:10px 0 0}
 
 <div>
   <figure class="fig w-seq reveal">
-    <div class="fig-bar"><span class="dot"></span>FIG. 12 · Offload 写链（memory → SSD）<span class="fig-tag">P39</span></div>
+    <div class="fig-bar"><span class="dot"></span>FIG. 12 · Offload 写链（memory → SSD）</div>
     <div class="fig-canvas">
       <svg viewBox="0 0 560 470" role="img" aria-label="SSD Offload 写时序" style="max-width:620px;margin:0 auto">
         <g>
@@ -1941,7 +1940,7 @@ p.small{margin:10px 0 0}
   </figure>
 
   <figure class="fig w-seq reveal">
-    <div class="fig-bar"><span class="dot"></span>FIG. 13 · Load 读链（SSD → memory）<span class="fig-tag">P40</span></div>
+    <div class="fig-bar"><span class="dot"></span>FIG. 13 · Load 读链（SSD → memory）</div>
     <div class="fig-canvas">
       <svg viewBox="0 0 620 470" role="img" aria-label="SSD Load 读时序" style="max-width:660px;margin:0 auto">
         <g>
@@ -1997,7 +1996,7 @@ p.small{margin:10px 0 0}
 </div>
 
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 14 · BucketStorageBackend 两阶段驱逐协议<span class="fig-tag">重绘自 P43</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 14 · BucketStorageBackend 两阶段驱逐协议</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1100 470" role="img" aria-label="两阶段驱逐协议">
       <!-- stage 1 -->
@@ -2064,7 +2063,7 @@ p.small{margin:10px 0 0}
 
 <h3>重启恢复：磁盘自动重登记，内存要靠快照</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 15 · 非 HA 重启恢复 vs HA 快照恢复<span class="fig-tag">重绘自 P44 / P45</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 15 · 非 HA 重启恢复 vs HA 快照恢复</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1180 620" role="img" aria-label="重启与 HA 恢复链路">
       <!-- non-HA -->
@@ -2204,7 +2203,7 @@ p.small{margin:10px 0 0}
   </div>
   <div class="sec-body">
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 16 · Conductor 组件与数据流<span class="fig-tag">重绘自 P47</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 16 · Conductor 组件与数据流</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1000 540" role="img" aria-label="Conductor 组件关系">
       <!-- source -->
@@ -2283,7 +2282,7 @@ p.small{margin:10px 0 0}
 
 <div>
   <figure class="fig w-seq reveal">
-    <div class="fig-bar"><span class="dot"></span>FIG. 17 · Event Flow：事件怎么入库<span class="fig-tag">P48 左</span></div>
+    <div class="fig-bar"><span class="dot"></span>FIG. 17 · Event Flow：事件怎么入库</div>
     <div class="fig-canvas">
       <svg viewBox="0 0 560 540" role="img" aria-label="Conductor 事件注册链路" style="max-width:600px;margin:0 auto">
         <rect x="30" y="24" width="220" height="48" rx="1" class="n-3"/>
@@ -2330,7 +2329,7 @@ p.small{margin:10px 0 0}
   </figure>
 
   <figure class="fig w-seq reveal">
-    <div class="fig-bar"><span class="dot"></span>FIG. 18 · Query Flow：路由怎么问<span class="fig-tag">P48 右</span></div>
+    <div class="fig-bar"><span class="dot"></span>FIG. 18 · Query Flow：路由怎么问</div>
     <div class="fig-canvas">
       <svg viewBox="0 0 560 540" role="img" aria-label="Conductor 查询链路" style="max-width:600px;margin:0 auto">
         <rect x="20" y="24" width="140" height="44" rx="1" class="n-3"/>
@@ -2378,7 +2377,7 @@ p.small{margin:10px 0 0}
 
 <h3>亲和调度：让第二次相同前缀请求回到同一张卡</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 19 · kv-conductor 亲和调度全链路（8K 前缀命中 → 跳过 Prefill）<span class="fig-tag">重绘自 P49</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 19 · kv-conductor 亲和调度全链路（8K 前缀命中 → 跳过 Prefill）</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 580" role="img" aria-label="亲和调度时序">
       <g>
@@ -2453,7 +2452,7 @@ p.small{margin:10px 0 0}
 </div>
 
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 20 · vLLM-Ascend 适配全图：链路 A / B / C<span class="fig-tag">重绘自 P15</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 20 · vLLM-Ascend 适配全图：链路 A / B / C</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1280 860" role="img" aria-label="vLLM-Ascend 与 Mooncake 适配架构">
       <!-- vllm core -->
@@ -2608,7 +2607,7 @@ p.small{margin:10px 0 0}
 
 <h3>PULL 还是 PUSH：差别不在传多少，而在谁算地址</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 21 · 非 layerwise（D 拉）vs layerwise（P 推）<span class="fig-tag">重绘自 P16 / P24</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 21 · 非 layerwise（D 拉）vs layerwise（P 推）</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 580" role="img" aria-label="PULL 与 PUSH 对比">
       <!-- PULL -->
@@ -2711,7 +2710,7 @@ p.small{margin:10px 0 0}
 
 <h3>P2P 全链路：注册 → 握手 → 前向 → 传输 → 拉取 → 解码</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 22 · PD 分离 Mooncake P2P 完整链路（PUSH / PULL 双模式）<span class="fig-tag">重绘自 P22 / P23</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 22 · PD 分离 Mooncake P2P 完整链路（PUSH / PULL 双模式）</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 700" role="img" aria-label="PD 分离 P2P 完整链路">
       <!-- phase 1 -->
@@ -2830,7 +2829,7 @@ p.small{margin:10px 0 0}
 
 <h3>KV Pool：落池、命中判定与回读</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 23 · vLLM-Ascend KV Pool 三阶段链路<span class="fig-tag">重绘自 P25 / P26</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 23 · vLLM-Ascend KV Pool 三阶段链路</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 700" role="img" aria-label="KV Pool 落池命中回读">
       <g>
@@ -2905,7 +2904,7 @@ p.small{margin:10px 0 0}
   </div>
   <div class="sec-body">
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 24 · PD 分离 + Store 的部署拓扑<span class="fig-tag">重绘自 P17 / P18 / P19</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 24 · PD 分离 + Store 的部署拓扑</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 580" role="img" aria-label="Mooncake 部署拓扑">
       <!-- master -->
@@ -3059,7 +3058,7 @@ mooncake_master --rpc_port=50051 &#92;
   <div class="sec-body">
 <h3>案例 1 · 远端是 host 内存，却配了 HCCS</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 25 · 503900 Transfer slice failed 的链路根因<span class="fig-tag">重绘自 P52</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 25 · 503900 Transfer slice failed 的链路根因</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1100 420" role="img" aria-label="HCCS 与 RoCE 配置错误">
       <!-- wrong -->
@@ -3107,7 +3106,7 @@ mooncake_master --rpc_port=50051 &#92;
 
 <h3>案例 2 · DP 场景下 PP 没进端口分配</h3>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 26 · kv 传输端口冲突（issue #4244）<span class="fig-tag">重绘自 P54</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 26 · kv 传输端口冲突（issue #4244）</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1100 420" role="img" aria-label="PP 并行端口冲突">
       <rect x="16" y="16" width="520" height="356" rx="3" class="plane" style="stroke:rgba(255,180,84,.22)"/>
@@ -3161,7 +3160,7 @@ mooncake_master --rpc_port=50051 &#92;
   前者负责快速扫描整条序列、选出相关 token 位置；后者只对选中的稀疏位置做完整注意力。
 </p>
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 27 · 从“组索引越界”到“scale 串用导致地址越界”<span class="fig-tag">重绘自 P56 / P58 / P61 / P62</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 27 · 从“组索引越界”到“scale 串用导致地址越界”</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1200 620" role="img" aria-label="GLM SFA 传输组与 scale 问题">
       <!-- panel 1 -->
@@ -3278,7 +3277,7 @@ mooncake_master --rpc_port=50051 &#92;
   </div>
   <div class="sec-body">
 <figure class="fig reveal">
-  <div class="fig-bar"><span class="dot"></span>FIG. 28 · 两种寻址模型：GVA 直访 vs key → 对象间接寻址<span class="fig-tag">据对比文档重绘</span></div>
+  <div class="fig-bar"><span class="dot"></span>FIG. 28 · 两种寻址模型：GVA 直访 vs key → 对象间接寻址</div>
   <div class="fig-canvas">
     <svg viewBox="0 0 1180 470" role="img" aria-label="GVA 与 key 对象寻址对比">
       <!-- GVA -->
@@ -3726,13 +3725,9 @@ mooncake_master --rpc_port=50051 &#92;
           <div class="brand-sub">KV CACHE TECHNICAL ATLAS</div>
         </div>
       </div>
-      <div class="foot-note">
-        素材来源：<b>VLLM-Ascend Mooncake 分析（65P）</b> · <b>Mooncake 与国内大厂 KV Cache 软件栈详解</b> · <b>memcache / mooncake / 元戎对比</b><br>
-        公开资料核对时间 2026-10-27 · 图表为按原文语义重绘，非原图转载
-      </div>
     </div>
     <div class="foot-bar">
-      <span>FAST '25 · vLLM-Ascend · Ascend NPU</span>
+      <span>KV CACHE · PD 分离 · ASCEND NPU</span>
       <span>单页离线文档 · 无外部依赖</span>
       <a href="#top">↑ 回到顶部</a>
     </div>
