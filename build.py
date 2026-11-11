@@ -39,7 +39,7 @@ ARTICLES = [
         "date": "2026-10-25",
         "summary": "个人学习笔记（原文转载）：四层架构知识地图梳理 LLM 推理框架全流程——调度、KV Cache、GPU 执行、多卡扩展、模型适配、PD 分离，每层附重难点与相关知识，点击模块跳转详解与原文。",
         "external": True,
-        "more": "查看知识地图 →",
+        "more": "查看知识地图",
     },
     {
         "src": "src/heterogeneous-pd-disaggregation.md",
@@ -56,6 +56,15 @@ ARTICLES = [
         "series": "MaaS 与算力运营",
         "date": "2026-11-10",
         "summary": "从科研机构“分卡到人”的算力现状出发，分析使用方式与负载的错配，说明 MaaS 池化如何把散卡收成可计量、可分摊的算力池，并给出到 PD 异构的分步落地路径与投入产出测算。",
+    },
+    {
+        "out": "mooncake-kv-cache.html",
+        "title": "Mooncake：KV Cache 解耦架构技术全景",
+        "series": "LLM Serving 笔记",
+        "date": "2026-11-11",
+        "summary": "从 Kimi 的 Prefill/Decode 解耦讲起，拆解 Mooncake 的 Store、Transfer Engine 与 Conductor 三件套，落到 vLLM-Ascend 的传输链路、部署配置与三类典型故障，并核对国内八家大厂的采用边界。",
+        "external": True,
+        "more": "阅读全文",
     },
 ]
 
